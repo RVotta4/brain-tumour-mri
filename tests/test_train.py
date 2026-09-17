@@ -56,3 +56,55 @@ def test_evaluate_model_reports_predictions_and_confidences():
     assert all(0.0 <= c <= 1.0 for c in result["confidences"])
     assert 0.0 <= result["accuracy"] <= 1.0
     assert result["loss"] > 0
+
+
+import json
+
+import numpy as np
+
+from src.data import save_splits, split_patients
+from src.train import run_experiment
+
+
+def write_tiny_dataset(folder):
+    """12 patients (4 per class), 3 slices each, 32x32 images with a class-specific square."""
+    rng = np.random.default_rng(0)
+    images, labels, patient_ids = [], [], []
+    for label in range(3):
+        for patient in range(4):
+            for _ in range(3):
+                image = (rng.random((32, 32)) * 30).astype(np.uint8)
+                top = 2 + 10 * label
+                image[top:top + 8, 12:20] = 255
+                images.append(image)
+                labels.append(label)
+                patient_ids.append(f"{label}{patient}")
+    dataset_path = folder / "tiny.npz"
+    np.savez_compressed(
+        dataset_path,
+        images=np.stack(images),
+        masks=np.zeros((len(images), 32, 32), dtype=np.uint8),
+        labels=np.array(labels, dtype=np.int64),
+        patient_ids=np.array(patient_ids),
+    )
+    splits_path = folder / "splits.csv"
+    save_splits(split_patients(patient_ids, labels, seed=42), splits_path)
+    return dataset_path, splits_path
+
+
+def test_run_experiment_writes_a_complete_record(tmp_path):
+    dataset_path, splits_path = write_tiny_dataset(tmp_path)
+
+    metrics = run_experiment(
+        name="tiny", model_name="small_cnn", epochs=2, batch_size=4, lr=1e-3, seed=42,
+        dataset_path=dataset_path, splits_path=splits_path, experiments_dir=tmp_path / "experiments",
+    )
+
+    folder = tmp_path / "experiments" / "tiny"
+    for filename in ["config.json", "history.csv", "metrics.json", "model.pt", "curves.png", "confusion_matrix.png"]:
+        assert (folder / filename).exists(), filename
+    assert metrics["split"] == "validation"
+    assert metrics["n_scans"] == 9  # 1 validation patient per class x 3 slices
+    assert set(metrics["per_class"]) == {"meningioma", "glioma", "pituitary"}
+    assert json.loads((folder / "config.json").read_text())["epochs"] == 2
+    assert len((folder / "history.csv").read_text().strip().splitlines()) == 3  # header + 2 epochs
