@@ -114,3 +114,39 @@ def test_splits_survive_saving_and_loading(tmp_path):
     save_splits(assignment, path)
 
     assert load_splits(path) == assignment
+
+
+import torch
+
+from src.data import MRIDataset, load_dataset
+
+
+def test_dataset_returns_scaled_single_channel_tensor_and_label():
+    images = np.array([np.zeros((8, 8)), np.full((8, 8), 255)], dtype=np.uint8)
+    labels = np.array([2, 0], dtype=np.int64)
+    dataset = MRIDataset(images, labels, indices=np.array([1, 0]))
+
+    image, label = dataset[0]
+
+    assert len(dataset) == 2
+    assert image.shape == (1, 8, 8)
+    assert image.dtype == torch.float32
+    assert image.min() >= 0.0 and image.max() <= 1.0
+    assert image.max() == 1.0
+    assert label == 0
+
+
+def test_load_dataset_reads_all_arrays(tmp_path):
+    path = tmp_path / "tiny.npz"
+    np.savez_compressed(
+        path,
+        images=np.zeros((2, 4, 4), dtype=np.uint8),
+        masks=np.zeros((2, 4, 4), dtype=np.uint8),
+        labels=np.array([0, 1]),
+        patient_ids=np.array(["100360", "101016"]),
+    )
+
+    data = load_dataset(path)
+
+    assert set(data) == {"images", "masks", "labels", "patient_ids"}
+    assert data["patient_ids"][1] == "101016"

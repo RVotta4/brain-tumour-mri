@@ -6,7 +6,9 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
+import torch
 from PIL import Image
+from torch.utils.data import Dataset
 
 CLASS_NAMES = ["meningioma", "glioma", "pituitary"]
 IMAGE_SIZE = 224
@@ -103,3 +105,30 @@ def indices_for_split(patient_ids, assignment, split):
         [i for i, pid in enumerate(patient_ids) if assignment[str(pid)] == split],
         dtype=np.int64,
     )
+
+
+def load_dataset(path=DATASET_PATH):
+    """Load the prepared arrays: images, masks, labels, patient_ids."""
+    with np.load(path) as archive:
+        return {name: archive[name] for name in archive.files}
+
+
+class MRIDataset(Dataset):
+    """Serves (image tensor, label) pairs for the slices at the given indices.
+
+    Images come out as float32 in [0, 1] with shape (1, height, width):
+    one channel because MRI slices are greyscale.
+    """
+
+    def __init__(self, images, labels, indices):
+        self.images = images
+        self.labels = labels
+        self.indices = indices
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, position):
+        i = self.indices[position]
+        image = torch.from_numpy(self.images[i].astype(np.float32) / 255.0).unsqueeze(0)
+        return image, int(self.labels[i])
