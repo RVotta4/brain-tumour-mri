@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from src.models import ResNet18Grey, SmallCNN, build_model
+from src.models import IMAGENET_MEAN, IMAGENET_STD, ResNet18Grey, SmallCNN, build_model
 
 
 def test_small_cnn_gives_three_scores_per_image():
@@ -51,3 +51,14 @@ def test_resnet18_applies_imagenet_normalisation():
     assert prepared[0, 0].mean().item() == pytest.approx(0.0, abs=1e-6)
     assert prepared[0, 1].mean().item() == pytest.approx((0.485 - 0.456) / 0.224, abs=1e-5)
     assert prepared[0, 2].mean().item() == pytest.approx((0.485 - 0.406) / 0.225, abs=1e-5)
+
+
+def test_resnet18_repeat_carries_the_original_pixels_into_every_channel():
+    model = ResNet18Grey(weights=None)
+    image = torch.arange(16, dtype=torch.float32).view(1, 1, 4, 4) / 16
+
+    prepared = model.prepare(image)
+
+    for channel, (mean, std) in enumerate(zip(IMAGENET_MEAN, IMAGENET_STD)):
+        expected = (image[0, 0] - mean) / std
+        assert torch.allclose(prepared[0, channel], expected, atol=1e-6)
