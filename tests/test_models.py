@@ -62,3 +62,7 @@ def test_resnet18_repeat_carries_the_original_pixels_into_every_channel():
     for channel, (mean, std) in enumerate(zip(IMAGENET_MEAN, IMAGENET_STD)):
         expected = (image[0, 0] - mean) / std
         assert torch.allclose(prepared[0, channel], expected, atol=1e-6)
+
+
+def test_build_model_makes_a_resnet_without_downloading_weights():
+    assert isinstance(build_model("resnet18", pretrained=False), ResNet18Grey)

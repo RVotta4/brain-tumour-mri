@@ -81,8 +81,16 @@ class ResNet18Grey(nn.Module):
         return self.backbone(self.prepare(x))
 
 
-def build_model(name, n_classes=3):
-    """Create a model from its name, as used on the command line."""
+def build_model(name, n_classes=3, pretrained=True):
+    """Create a model from its name, as used on the command line.
+
+    pretrained only affects resnet18: True fetches the ImageNet weights
+    (~45 MB, downloaded once and cached), False starts from random weights
+    so tests can run offline.
+    """
     if name == "small_cnn":
         return SmallCNN(in_channels=1, n_classes=n_classes)
+    if name == "resnet18":
+        weights = ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
+        return ResNet18Grey(n_classes=n_classes, weights=weights)
     raise ValueError(f"unknown model: {name}")
