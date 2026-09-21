@@ -1,6 +1,11 @@
 """The neural networks."""
 
+import torch
 from torch import nn
+from torchvision.models import ResNet18_Weights, resnet18
+
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
 def conv_block(in_channels, out_channels):
@@ -43,6 +48,37 @@ class SmallCNN(nn.Module):
         x = self.features(x)
         x = self.pool(x).flatten(1)
         return self.classifier(x)
+
+
+class ResNet18Grey(nn.Module):
+    """ImageNet-pretrained ResNet-18 adapted to single-channel MRI slices.
+
+    ResNet-18 learned its filters from 1.28 million colour photographs. Those
+    early edge and texture detectors transfer to MRI, so the whole network is
+    fine-tuned from those weights rather than trained from scratch.
+
+    Two mismatches are fixed here rather than in MRIDataset, so that the
+    dataset keeps returning plain 1-channel tensors in [0, 1] and SmallCNN is
+    unaffected:
+      - the grey channel is repeated three times, which leaves ResNet's
+        pretrained first convolution exactly as ImageNet trained it;
+      - ImageNet's per-channel mean and standard deviation are applied,
+        because pretrained weights expect inputs on that scale.
+    """
+
+    def __init__(self, n_classes=3, weights=None):
+        super().__init__()
+        self.backbone = resnet18(weights=weights)
+        self.backbone.fc = nn.Linear(self.backbone.fc.in_features, n_classes)
+        self.register_buffer("mean", torch.tensor(IMAGENET_MEAN).view(1, 3, 1, 1))
+        self.register_buffer("std", torch.tensor(IMAGENET_STD).view(1, 3, 1, 1))
+
+    def prepare(self, x):
+        """Turn 1-channel [0, 1] scans into the 3-channel input ResNet expects."""
+        return (x.repeat(1, 3, 1, 1) - self.mean) / self.std
+
+    def forward(self, x):
+        return self.backbone(self.prepare(x))
 
 
 def build_model(name, n_classes=3):
