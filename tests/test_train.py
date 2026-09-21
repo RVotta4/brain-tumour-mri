@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from src.evaluate import evaluate_model
 from src.models import SmallCNN
-from src.train import class_weights, set_seed, train_one_epoch
+from src.train import best_loss_epoch, class_weights, set_seed, train_one_epoch
 
 
 def tiny_learnable_batch():
@@ -108,3 +108,22 @@ def test_run_experiment_writes_a_complete_record(tmp_path):
     assert set(metrics["per_class"]) == {"meningioma", "glioma", "pituitary"}
     assert json.loads((folder / "config.json").read_text())["epochs"] == 2
     assert len((folder / "history.csv").read_text().strip().splitlines()) == 3  # header + 2 epochs
+
+
+def test_best_loss_epoch_picks_the_lowest_validation_loss():
+    history = [
+        {"epoch": 1, "val_loss": 1.2},
+        {"epoch": 2, "val_loss": 0.6},
+        {"epoch": 3, "val_loss": 0.9},
+    ]
+
+    assert best_loss_epoch(history) == 2
+
+
+def test_best_loss_epoch_keeps_the_earliest_on_a_tie():
+    history = [
+        {"epoch": 1, "val_loss": 0.5},
+        {"epoch": 2, "val_loss": 0.5},
+    ]
+
+    assert best_loss_epoch(history) == 1

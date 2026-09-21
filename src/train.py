@@ -74,6 +74,16 @@ def write_history(history, path):
         writer.writerows(history)
 
 
+def best_loss_epoch(history):
+    """The epoch with the lowest validation loss, earliest one winning a tie.
+
+    Recorded alongside the best-accuracy epoch, which is what selects the
+    checkpoint. When the two disagree, the headline accuracy is partly a
+    lucky pick from a noisy curve rather than a stable estimate.
+    """
+    return min(history, key=lambda row: row["val_loss"])["epoch"]
+
+
 def run_experiment(name, model_name, epochs, batch_size, lr, seed, subset=0,
                    dataset_path=DATASET_PATH, splits_path=SPLITS_PATH, experiments_dir=EXPERIMENTS_DIR):
     """Train on the training patients, pick the best epoch on validation, save the record.
@@ -138,6 +148,7 @@ def run_experiment(name, model_name, epochs, batch_size, lr, seed, subset=0,
     metrics = {
         "split": "validation",
         "best_epoch": best_epoch,
+        "best_loss_epoch": best_loss_epoch(history),
         "n_scans": len(final["y_true"]),
         "accuracy": round(final["accuracy"], 4),
         "loss": round(final["loss"], 4),
