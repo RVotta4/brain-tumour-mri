@@ -118,13 +118,15 @@ brain-tumour-mri/
 | # | Name | Change from previous | Question it answers |
 |---|---|---|---|
 | 1 | `01-small-cnn` | Baseline from scratch | How far does a simple model get on its own? |
-| 2 | `02-resnet18-pretrained` | Swap to pretrained ResNet-18 | Does prior visual knowledge help with ~2,000 training images? |
-| 3 | `03-resnet18-augment` | Add augmentation (small rotations, flips, slight brightness/contrast changes) | Does extra variety reduce overfitting? |
-| 4 | `04-kaggle-trap` | Same pipeline on the Kaggle data, random image-level split | Why can a 99% score be untrustworthy? |
+| 2 | `02-resnet18-lr1e-3` | Swap to pretrained ResNet-18, learning rate unchanged | Does prior visual knowledge help with ~2,000 training images? |
+| 3 | `03-resnet18-finetuned` | Drop the learning rate to 1e-4 | Does the correct fine-tuning rate settle the validation curve? |
+| 4 | `04-resnet18-augment` | Add augmentation (small rotations, flips, slight brightness/contrast changes) | Does extra variety reduce overfitting? |
+| 5 | `05-kaggle-trap` | Same pipeline on the Kaggle data, random image-level split | Why can a 99% score be untrustworthy? |
 
-- **Comparisons:** experiments 1–3 are compared on validation, one change at a time.
-- **Final model:** the best of 1–3 becomes the final model, scored once on the test set.
-- **Experiment 4:** reported separately.
+- **Comparisons:** experiments 1–4 are compared on validation, one change at a time.
+- **Stage 2 detail:** see `2026-09-21-stage-2-resnet18-design.md`.
+- **Final model:** the best of 1–4 becomes the final model, scored once on the test set.
+- **Experiment 5:** reported separately.
 
 ### 5.4 Metrics
 
@@ -188,11 +190,11 @@ Each stage ends with passing tests, updated README and learning notes, and a pus
 |---|---|
 | 0 | Project setup, download + conversion, patient split, data tests |
 | 1 | Metrics, SmallCNN, training loop, experiment 1, README v1 (validation results) |
-| 2 | ResNet-18, experiment 2, comparison |
-| 3 | Augmentation, experiment 3, final model chosen and scored once on test |
+| 2 | ResNet-18, experiments 2 and 3, comparison |
+| 3 | Augmentation, experiment 4, final model chosen and scored once on test |
 | 4 | Grad-CAM, heatmap-in-mask score, mistake gallery |
 | 5 | Gradio demo deployed to Hugging Face Spaces |
-| 6 | Kaggle experiment 4 and "99% trap" README section |
+| 6 | Kaggle experiment 5 and "99% trap" README section |
 
 ## 11. Working method
 
