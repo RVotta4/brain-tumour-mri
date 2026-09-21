@@ -1,5 +1,7 @@
 # PyTorch from PyPI is CPU-only on Windows, which is what this laptop needs.
 torch>=2.6
+# torchvision supplies ResNet-18 and its ImageNet-pretrained weights.
+torchvision
 numpy
 h5py
 pillow
