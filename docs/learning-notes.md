@@ -120,3 +120,48 @@ Read row by row, the failure names itself: of 104 real meningiomas, 19 correct, 
 The diagonal sums to 337 of 457, which is the 73.7% accuracy. That is exactly why the table is worth showing: the same model is 91% on one class and 18% on another, and one number concealed it.
 
 > **Say:** "The confusion matrix is where the real story is. My accuracy looks acceptable at 74%, but almost all the error is one class — 85 of 104 meningiomas misfiled. That's what motivates experiment 2."
+
+## 10. Transfer learning
+
+ResNet-18 was trained on ImageNet: 1.28 million everyday photographs across 1,000 categories. That taught its filters to detect edges, corners, textures and blobs against backgrounds — and an edge is an edge whether it outlines a terrier or a tumour. The early layers of a photo network are genuinely useful for MRI even though it has never seen a brain.
+
+SmallCNN had to invent all of that from 2,100 scans, with 98,019 parameters. ResNet-18 arrives already knowing it, with 11 million.
+
+The result: 73.7% → 88.0%, and meningioma recall 0.18 → 0.84. One honest caveat. That swap changed two things at once — a bigger, better-designed architecture *and* pretrained starting weights — so it proves the pretrained ResNet-18 is better, not how much of the gain is the pretraining. Separating them would take one more run: ResNet-18 from random weights. I chose not to run it.
+
+> **Say:** "ResNet-18 comes pretrained on 1.28 million photographs, so its early filters already detect edges and textures. Switching to it took me from 74% to 88%. To be precise, that changed the architecture and the starting weights together — isolating pretraining would need a ResNet trained from scratch as a control."
+
+## 11. Freezing versus fine-tuning
+
+There are two ways to reuse a pretrained network.
+
+**Feature extraction (freezing):** lock every existing layer and train only a new final layer. The network becomes a fixed translator — image in, 512 numbers describing its visual content out. Fast, because no updates are computed for the 11 million frozen weights. Limited, because if ImageNet features don't capture what separates tumour types, training the last layer cannot conjure it.
+
+**Fine-tuning:** nothing is locked, so every weight adapts to MRI. A higher ceiling, at the cost of more compute and more risk. This project fine-tunes.
+
+> **Say:** "You can freeze the pretrained layers and train just a new head, which is fast but capped, or fine-tune everything, which is slower but adapts the features to your domain. I fine-tuned, because MRI is far enough from photographs that the features need to move."
+
+## 12. Why the learning rate depends on where you start
+
+The learning rate is the size of each nudge. The right size depends entirely on what the weights currently are.
+
+Training SmallCNN from scratch, the weights began as random noise — big nudges were fine, because there was nothing valuable to damage. 1e-3 was sensible.
+
+Fine-tuning starts from the distilled result of someone else's million-image training run. Nudges sized for random noise shove those carefully balanced filters around, damaging the very thing being borrowed. Convention is 1e-4 or lower.
+
+Experiments 2 and 3 changed nothing but the rate. At 1e-3 validation accuracy swung across 38 points; at 1e-4 it stayed within 9, and accuracy rose from 88.0% to 93.0%.
+
+> **Say:** "Training from scratch is writing on a blank page, so bold strokes are fine. Fine-tuning is editing a good draft — small careful corrections. Dropping the learning rate tenfold cut the swing in validation accuracy from 38 points to 9."
+
+## 13. Reading a collapse: when one epoch guesses one class
+
+Experiment 1's worst epoch scored 22.8% — exactly the fraction of validation scans that are meningioma. Experiment 2's worst scored 50.3%, next to the glioma share of 49.7%. A score that lands on a class's share is the fingerprint of a model answering (nearly) the same class for everything. Meanwhile training accuracy that same epoch was over 90%.
+
+So the model was fine while training and broken while being evaluated. Two explanations fit:
+
+- **Overshooting:** a learning rate too large, so each epoch's weights land somewhere different.
+- **BatchNorm lag:** BatchNorm layers normalise with the current batch during training, but with a stored running average during evaluation. If the weights move quickly, that average goes stale, every number gets shifted at evaluation time, and predictions can pile into one class.
+
+Lowering the learning rate cures both, so experiment 3 proves the fix rather than the cause. A cheap way to tell them apart would be to also score the *training* set in evaluation mode each epoch: if that collapses too, BatchNorm is the culprit.
+
+> **Say:** "My worst epochs scored exactly one class's share of the data — the model was predicting one class for everything, while training accuracy was over 90%. That points at a train-versus-evaluation difference, likely BatchNorm statistics lagging a fast-moving model. A lower learning rate fixed it; I'm careful not to claim I've proved which cause it was."
