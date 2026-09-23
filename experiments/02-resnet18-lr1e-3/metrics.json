@@ -1,0 +1,39 @@
+{
+  "split": "validation",
+  "best_epoch": 5,
+  "best_loss_epoch": 1,
+  "n_scans": 457,
+  "accuracy": 0.8796,
+  "loss": 0.4448,
+  "per_class": {
+    "meningioma": {
+      "precision": 0.719,
+      "recall": 0.8365
+    },
+    "glioma": {
+      "precision": 0.911,
+      "recall": 0.9471
+    },
+    "pituitary": {
+      "precision": 1.0,
+      "recall": 0.7937
+    }
+  },
+  "confusion_matrix": [
+    [
+      87,
+      17,
+      0
+    ],
+    [
+      12,
+      215,
+      0
+    ],
+    [
+      22,
+      4,
+      100
+    ]
+  ]
+}
