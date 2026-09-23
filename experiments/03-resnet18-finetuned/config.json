@@ -1,0 +1,9 @@
+{
+  "name": "03-resnet18-finetuned",
+  "model": "resnet18",
+  "epochs": 15,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "seed": 42,
+  "subset": 0
+}
