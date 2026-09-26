@@ -1,4 +1,4 @@
-# Stage 3: Augmentation and the Test-Set Score — Implementation Plan
+﻿# Stage 3: Augmentation and the Test-Set Score â€” Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -16,8 +16,8 @@
 
 - **Platform:** Windows, PowerShell. All commands run from `C:\Users\Robbi\brain-tumour-mri`.
 - **Always call the venv's Python directly:** `.\.venv\Scripts\python.exe`. Bare `python` on this machine opens the Microsoft Store.
-- **Robbi is a beginner and learning.** Each task starts with a **Concept** line — explain that concept in plain English before writing the code.
-- **Code tasks (1–5) run straight through without check-ins.** The two marked PAUSES (Tasks 8 and 10) stop for Robbi.
+- **Robbi is a beginner and learning.** Each task starts with a **Concept** line â€” explain that concept in plain English before writing the code.
+- **Code tasks (1â€“5) run straight through without check-ins.** The two marked PAUSES (Tasks 8 and 10) stop for Robbi.
 - **Robbi runs the training and scoring commands** (Tasks 6, 7 and 9). Don't run them on Robbi's behalf. If the laptop sleeps mid-run, training pauses and resumes; it does not need restarting.
 - **Commit messages** end with the trailer `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` (passed as a second `-m`).
 - **Verified facts as of 2026-09-26:** `torch 2.14.0+cpu` and `torchvision 0.29.0+cpu` installed; torchvision `v2` transforms work on (1, 224, 224) float tensors; 40 tests passing; `main` holds the spec commit `241fd3e` (not yet pushed). ResNet-18 epochs take about 3.5 minutes.
@@ -35,7 +35,7 @@
 | `tests/test_plots.py` | Preview grid test |
 | `tests/test_train.py` | Augmented run test |
 | `tests/test_score.py` | New: guard and scoring tests |
-| `README.md`, `docs/learning-notes.md` | Experiment 4, final test results, notes 14–16 |
+| `README.md`, `docs/learning-notes.md` | Experiment 4, final test results, notes 14â€“16 |
 
 ---
 
@@ -52,7 +52,7 @@ Expected: `Switched to a new branch 'feat/stage-3-augmentation'`.
 
 ### Task 2: The augmentation transform
 
-**Concept:** data augmentation. Experiment 3 reached 100% training accuracy by epoch 5 — it memorised the 2,100 training scans. Augmentation shows a slightly different version of each scan every time it is seen (mirrored, tilted a few degrees, a little brighter or darker), so memorising exact pixels stops working and the model has to learn what the tumour looks like. Every change must be something a real scanner could produce, which is why there are no upside-down flips.
+**Concept:** data augmentation. Experiment 3 reached 100% training accuracy by epoch 5 â€” it memorised the 2,100 training scans. Augmentation shows a slightly different version of each scan every time it is seen (mirrored, tilted a few degrees, a little brighter or darker), so memorising exact pixels stops working and the model has to learn what the tumour looks like. Every change must be something a real scanner could produce, which is why there are no upside-down flips.
 
 **Files:**
 - Modify: `src/data.py`
@@ -261,7 +261,7 @@ git commit -m "feat: augmentation preview grid" -m "Co-Authored-By: Claude Opus 
 
 ### Task 4: The --augment flag
 
-**Concept:** augment training, never validation. Validation is the practice exam; if its scans were randomly altered, the score would change from run to run for reasons that have nothing to do with the model, and comparisons with experiments 1–3 would break.
+**Concept:** augment training, never validation. Validation is the practice exam; if its scans were randomly altered, the score would change from run to run for reasons that have nothing to do with the model, and comparisons with experiments 1â€“3 would break.
 
 **Files:**
 - Modify: `src/train.py`
@@ -390,7 +390,7 @@ git commit -m "feat: --augment flag for training-only augmentation" -m "Co-Autho
 
 ### Task 5: Scoring a saved model, with the one-shot test guard
 
-**Concept:** the test set is the final exam. Every decision so far (which epoch, which learning rate, which model) was made by looking at validation scores, so validation scores are now slightly flattering. The test patients have never influenced anything, which is the only reason their score is honest — and it stays honest only if it is used once. Peeking, adjusting and re-scoring would quietly turn it into a second validation set. The guard makes that impossible by accident.
+**Concept:** the test set is the final exam. Every decision so far (which epoch, which learning rate, which model) was made by looking at validation scores, so validation scores are now slightly flattering. The test patients have never influenced anything, which is the only reason their score is honest â€” and it stays honest only if it is used once. Peeking, adjusting and re-scoring would quietly turn it into a second validation set. The guard makes that impossible by accident.
 
 **Files:**
 - Create: `src/score.py`
@@ -584,7 +584,7 @@ if __name__ == "__main__":
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 ```
-Expected: 50 passed. The suite must not create `test_metrics.json` anywhere under the real `experiments/` folder; check with:
+Expected: 50 passed (51 after the final-review fixes). The suite must not create `test_metrics.json` anywhere under the real `experiments/` folder; check with:
 
 ```powershell
 Get-ChildItem experiments -Recurse -Filter test_metrics.json
@@ -613,13 +613,13 @@ Expected: one epoch line, per-class scores (meaningless at this size), and `Save
 
 - [ ] **Step 2: Inspect the preview with Robbi**
 
-Open `experiments/smoke/augmentation.png` (use the Read tool to view it, and have Robbi open it too). Check: every version is a plausible scan, rotations are small, nothing is upside down, brightness changes are subtle. If anything looks unrealistic, stop and discuss before Task 7 — changing augmentation strength would be a spec change.
+Open `experiments/smoke/augmentation.png` (use the Read tool to view it, and have Robbi open it too). Check: every version is a plausible scan, rotations are small, nothing is upside down, brightness changes are subtle. If anything looks unrealistic, stop and discuss before Task 7 â€” changing augmentation strength would be a spec change.
 
 ---
 
 ### Task 7: Run experiment 4 (Robbi runs this)
 
-**Concept:** one change only. Same model, same learning rate, same 15 epochs and seed as experiment 3; the only difference is `--augment`. Expect training accuracy to rise more slowly than in experiment 3 — that is augmentation working, not failing.
+**Concept:** one change only. Same model, same learning rate, same 15 epochs and seed as experiment 3; the only difference is `--augment`. Expect training accuracy to rise more slowly than in experiment 3 â€” that is augmentation working, not failing.
 
 - [ ] **Step 1: Run it**
 
@@ -638,7 +638,7 @@ Expected: `config.json`, `history.csv`, `metrics.json`, `curves.png`, `confusion
 
 ---
 
-### Task 8: ⏸ PAUSE 1 — review experiment 4 and apply the rule
+### Task 8: â¸ PAUSE 1 â€” review experiment 4 and apply the rule
 
 - [ ] **Step 1: Build the comparison**
 
@@ -646,12 +646,12 @@ From `experiments/03-resnet18-finetuned/` and `experiments/04-resnet18-augment/`
 
 - [ ] **Step 2: Apply the rule and discuss with Robbi**
 
-State the rule's outcome mechanically first: experiment 4's `accuracy` is ≥ 0.95 → final model is `04-resnet18-augment`; otherwise → `03-resnet18-finetuned`. Then cover with Robbi, using both `curves.png` files:
+State the rule's outcome mechanically first: experiment 4's `accuracy` is â‰¥ 0.95 â†’ final model is `04-resnet18-augment`; otherwise â†’ `03-resnet18-finetuned`. Then cover with Robbi, using both `curves.png` files:
 - Did augmentation reduce overfitting (training accuracy, gap between training and validation loss)?
 - Did it change meningioma precision (experiment 3's weak spot, 0.82)?
 - Anything surprising?
 
-Do not continue until Robbi agrees on the final model. If augmentation helped overfitting but missed the 2-point bar, report both facts plainly — the rule still decides.
+Do not continue until Robbi agrees on the final model. If augmentation helped overfitting but missed the 2-point bar, report both facts plainly â€” the rule still decides.
 
 ---
 
@@ -668,7 +668,7 @@ In the commands below, `<final>` is the folder name agreed in Task 8 (`03-resnet
 ```
 Expected: the accuracy printed equals that experiment's `metrics.json` accuracy (93.0% for experiment 3). If it differs, stop and investigate with superpowers:systematic-debugging before going further.
 
-- [ ] **Step 2: Score the test set — once**
+- [ ] **Step 2: Score the test set â€” once**
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.score --name <final> --split test
@@ -684,7 +684,7 @@ git commit -m "exp: final model scored once on the test set" -m "Co-Authored-By:
 
 ---
 
-### Task 10: ⏸ PAUSE 2 — review the test result with Robbi
+### Task 10: â¸ PAUSE 2 â€” review the test result with Robbi
 
 - [ ] **Step 1: Compare test with validation**
 
@@ -696,7 +696,7 @@ Put the final model's validation and test scores side by side (accuracy, per-cla
 - Which tumour type is weakest on test, and does it match validation?
 - The number that goes in the README headline.
 
-If test is well below validation, report it plainly — that gap is the finding. Do not re-score, retrain or adjust anything; the guard would refuse anyway.
+If test is well below validation, report it plainly â€” that gap is the finding. Do not re-score, retrain or adjust anything; the guard would refuse anyway.
 
 ---
 
@@ -714,7 +714,7 @@ Fill every angle-bracket value from the experiment files and the Task 8 and 10 d
 1. Status line:
 
 ```markdown
-> **Status:** in progress. Experiments 1–4 complete and the final model scored once on the test set; heatmaps and a live demo are next.
+> **Status:** in progress. Experiments 1â€“4 complete and the final model scored once on the test set; heatmaps and a live demo are next.
 ```
 
 2. Add a row to the experiments table:
@@ -730,7 +730,7 @@ and change the table's intro sentence "Everything else (data, split, 15 epochs, 
 ```markdown
 ### Experiment 4: adding augmentation
 
-Identical to experiment 3, except each training scan is randomly changed every time it is used: mirrored left-right half the time, rotated up to 10°, and brightness and contrast shifted up to 10%. Validation scans are never changed. No vertical flips, because an upside-down brain never comes out of a scanner.
+Identical to experiment 3, except each training scan is randomly changed every time it is used: mirrored left-right half the time, rotated up to 10Â°, and brightness and contrast shifted up to 10%. Validation scans are never changed. No vertical flips, because an upside-down brain never comes out of a scanner.
 
 ![Augmentation examples](experiments/04-resnet18-augment/augmentation.png)
 
@@ -748,7 +748,7 @@ Overall validation accuracy: <accuracy>.
 
 ![Confusion matrix](experiments/04-resnet18-augment/confusion_matrix.png)
 
-**What this shows.** <2–4 sentences agreed in Task 8: effect on overfitting, on meningioma precision, and anything surprising.>
+**What this shows.** <2â€“4 sentences agreed in Task 8: effect on overfitting, on meningioma precision, and anything surprising.>
 ```
 
 4. After the experiments sections and before `## Limitations`, add:
@@ -756,7 +756,7 @@ Overall validation accuracy: <accuracy>.
 ```markdown
 ## Final test results
 
-**The rule, written before experiment 4 ran:** experiment 4 would become the final model only if it beat experiment 3's 93.0% validation accuracy by at least 2 points (≥ 95.0%); otherwise experiment 3 would. A smaller margin is within epoch-to-epoch noise, and a tie goes to the simpler model. Experiment 4 scored <accuracy>, so the final model is **<final model>**.
+**The rule, written before experiment 4 ran:** experiment 4 would become the final model only if it beat experiment 3's 93.0% validation accuracy by at least 2 points (â‰¥ 95.0%); otherwise experiment 3 would. A smaller margin is within epoch-to-epoch noise, and a tie goes to the simpler model. Experiment 4 scored <accuracy>, so the final model is **<final model>**.
 
 That model was then scored **once** on the 34 test patients (<n> scans) that had played no part in any decision. The code refuses a second test score.
 
@@ -770,7 +770,7 @@ That model was then scored **once** on the 34 test patients (<n> scans) that had
 
 ![Test confusion matrix](experiments/<final>/test_confusion_matrix.png)
 
-<2–4 sentences agreed in Task 10: the gap from validation and why, the weakest type.>
+<2â€“4 sentences agreed in Task 10: the gap from validation and why, the weakest type.>
 ```
 
 5. In `## How to run`, add after the experiment 3 line:
@@ -787,33 +787,33 @@ Fill the angle-bracket figures from the results; keep the rest as written.
 ```markdown
 ## 14. Data augmentation
 
-A model that has seen the same 2,100 scans fifteen times can simply memorise them — experiment 3 reached 100% training accuracy by epoch 5. Augmentation changes each scan slightly every time it is served: mirrored, tilted a few degrees, a little brighter or darker. The model never sees exactly the same image twice, so memorising pixels stops paying off and it has to learn what a tumour looks like.
+A model that has seen the same 2,100 scans fifteen times can simply memorise them â€” experiment 3 reached 100% training accuracy by epoch 5. Augmentation changes each scan slightly every time it is served: mirrored, tilted a few degrees, a little brighter or darker. The model never sees exactly the same image twice, so memorising pixels stops paying off and it has to learn what a tumour looks like.
 
-The changes must be ones a real scanner could produce. A mirrored brain is still a realistic brain, a slight tilt is a patient's head position, and brightness varies between scanners. An upside-down brain never comes out of an MRI machine, so there are no vertical flips — teaching the model to handle impossible images wastes its capacity.
+The changes must be ones a real scanner could produce. A mirrored brain is still a realistic brain, a slight tilt is a patient's head position, and brightness varies between scanners. An upside-down brain never comes out of an MRI machine, so there are no vertical flips â€” teaching the model to handle impossible images wastes its capacity.
 
 Augmentation is applied to training only. Validation and test scans stay untouched, otherwise their scores would change from run to run for reasons unrelated to the model.
 
 <one or two sentences on what experiment 4 actually showed>
 
-> **Say:** "Augmentation shows the model a slightly different version of each scan every epoch — mirrored, tilted, brightness shifted — only changes a real scanner could produce. It fights memorisation, and it's only ever applied to training data."
+> **Say:** "Augmentation shows the model a slightly different version of each scan every epoch â€” mirrored, tilted, brightness shifted â€” only changes a real scanner could produce. It fights memorisation, and it's only ever applied to training data."
 
 ## 15. Deciding the rule before seeing the result
 
 Experiment 3 scored 93.0% on validation. If experiment 4 came in at 93.5%, is it better? Validation accuracy moved by up to 9 points from one epoch to the next in experiment 3, so half a point is noise.
 
-The danger is choosing the rule after seeing the numbers — "higher accuracy wins" when that suits, "lower loss wins" when that suits. Each choice feels reasonable, and together they quietly pick whatever looks best. So the rule was written into the spec before experiment 4 ran: augmentation had to win by at least 2 points (95.0%), otherwise the simpler model stayed. In science this is called pre-registration.
+The danger is choosing the rule after seeing the numbers â€” "higher accuracy wins" when that suits, "lower loss wins" when that suits. Each choice feels reasonable, and together they quietly pick whatever looks best. So the rule was written into the spec before experiment 4 ran: augmentation had to win by at least 2 points (95.0%), otherwise the simpler model stayed. In science this is called pre-registration.
 
-> **Say:** "I wrote the model-selection rule down before running the final experiment — it had to win by two points, or the simpler model stayed. Deciding the rule after seeing results lets you pick whatever looks best without meaning to."
+> **Say:** "I wrote the model-selection rule down before running the final experiment â€” it had to win by two points, or the simpler model stayed. Deciding the rule after seeing results lets you pick whatever looks best without meaning to."
 
 ## 16. Why the test set is used once
 
-Every decision in this project — which epoch to keep, which learning rate, which model — was made by looking at validation scores. That makes validation a little flattering: the choices were tuned to it. The 34 test patients influenced nothing, which is the only reason their score is an honest estimate of performance on new patients.
+Every decision in this project â€” which epoch to keep, which learning rate, which model â€” was made by looking at validation scores. That makes validation a little flattering: the choices were tuned to it. The 34 test patients influenced nothing, which is the only reason their score is an honest estimate of performance on new patients.
 
 That honesty survives exactly one look. Score the test set, adjust something, score again, and the test set has become a second validation set. So `src/score.py` refuses to score the test set if any experiment already has test results.
 
 Final model on test: <test accuracy>, against <validation accuracy> on validation. <one sentence on the gap>
 
-> **Say:** "The test set was touched once, at the very end, and the code refuses a second look. Validation was used for every decision, so it's slightly optimistic; the test score is the honest number — <test accuracy>."
+> **Say:** "The test set was touched once, at the very end, and the code refuses a second look. Validation was used for every decision, so it's slightly optimistic; the test score is the honest number â€” <test accuracy>."
 ```
 
 - [ ] **Step 3: Check nothing was left unfilled**
@@ -828,7 +828,7 @@ Expected: no matches.
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 ```
-Expected: 50 passed.
+Expected: 50 passed (51 after the final-review fixes).
 
 - [ ] **Step 5: Commit**
 
@@ -853,8 +853,8 @@ Expected: the push reports `main -> main`.
 
 ## Done when
 
-- `.\.venv\Scripts\python.exe -m pytest` passes in full (50 tests).
+- `.\.venv\Scripts\python.exe -m pytest` passes in full (51 tests).
 - `experiments/04-resnet18-augment/` holds config, history, metrics and three charts, committed without `model.pt`.
 - Exactly one `test_metrics.json` exists in the project, committed, for the final model chosen by the pre-set rule.
 - Robbi has reviewed both pauses and the wording; README and notes are merged to `main` and pushed.
-- **Next:** Stage 4 plan — Grad-CAM, heatmap-in-mask score and mistake gallery on the final model.
+- **Next:** Stage 4 plan â€” Grad-CAM, heatmap-in-mask score and mistake gallery on the final model.
