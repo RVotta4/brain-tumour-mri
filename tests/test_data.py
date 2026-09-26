@@ -150,3 +150,37 @@ def test_load_dataset_reads_all_arrays(tmp_path):
 
     assert set(data) == {"images", "masks", "labels", "patient_ids"}
     assert data["patient_ids"][1] == "101016"
+
+
+from src.data import train_transform
+
+
+def test_train_transform_keeps_shape_and_range():
+    torch.manual_seed(0)
+    transform = train_transform()
+    image = torch.rand(1, 224, 224)
+
+    for _ in range(20):
+        out = transform(image)
+        assert out.shape == (1, 224, 224)
+        assert out.min() >= 0.0 and out.max() <= 1.0
+
+
+def test_train_transform_changes_the_image():
+    torch.manual_seed(0)
+    image = torch.rand(1, 64, 64)
+
+    out = train_transform()(image)
+
+    assert not torch.equal(out, image)
+
+
+def test_dataset_applies_its_transform():
+    images = np.full((1, 8, 8), 255, dtype=np.uint8)
+    labels = np.array([1], dtype=np.int64)
+    dataset = MRIDataset(images, labels, indices=np.array([0]), transform=lambda x: x * 0.5)
+
+    image, label = dataset[0]
+
+    assert torch.allclose(image, torch.full((1, 8, 8), 0.5))
+    assert label == 1

@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision.transforms import v2
 
 CLASS_NAMES = ["meningioma", "glioma", "pituitary"]
 IMAGE_SIZE = 224
@@ -113,17 +114,45 @@ def load_dataset(path=DATASET_PATH):
         return {name: archive[name] for name in archive.files}
 
 
+def clip_to_unit_range(image):
+    """Keep every pixel within [0, 1] after brightness and contrast changes."""
+    return image.clamp(0.0, 1.0)
+
+
+def train_transform():
+    """Random, realistic changes applied to training scans only.
+
+    Each time a scan is served it is changed slightly, so the model never
+    sees exactly the same image twice and cannot simply memorise pixels:
+      - mirrored left-right half the time (a mirrored brain is still a
+        realistic brain; upside-down never comes out of a scanner, so no
+        vertical flips);
+      - rotated by up to 10 degrees either way, like a small head tilt,
+        with the empty corners filled black to match the scan background;
+      - brightness and contrast changed by up to 10%, like a different
+        scanner or setting.
+    """
+    return v2.Compose([
+        v2.RandomHorizontalFlip(p=0.5),
+        v2.RandomRotation(degrees=10),
+        v2.ColorJitter(brightness=0.1, contrast=0.1),
+        v2.Lambda(clip_to_unit_range),
+    ])
+
+
 class MRIDataset(Dataset):
     """Serves (image tensor, label) pairs for the slices at the given indices.
 
     Images come out as float32 in [0, 1] with shape (1, height, width):
-    one channel because MRI slices are greyscale.
+    one channel because MRI slices are greyscale. If a transform is given
+    (training only), it is applied to each image as it is served.
     """
 
-    def __init__(self, images, labels, indices):
+    def __init__(self, images, labels, indices, transform=None):
         self.images = images
         self.labels = labels
         self.indices = indices
+        self.transform = transform
 
     def __len__(self):
         return len(self.indices)
@@ -131,4 +160,6 @@ class MRIDataset(Dataset):
     def __getitem__(self, position):
         i = self.indices[position]
         image = torch.from_numpy(self.images[i].astype(np.float32) / 255.0).unsqueeze(0)
+        if self.transform is not None:
+            image = self.transform(image)
         return image, int(self.labels[i])
