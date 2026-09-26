@@ -40,6 +40,7 @@ def test_scoring_on_test_writes_results_and_then_locks(tmp_path):
     folder = paths["experiments_dir"] / "tiny"
     assert metrics["split"] == "test"
     assert metrics["n_scans"] == 9  # 1 test patient per class x 3 slices
+    assert metrics["best_epoch"] == 1
     assert json.loads((folder / TEST_RESULTS).read_text())["split"] == "test"
     assert (folder / "test_confusion_matrix.png").exists()
     with pytest.raises(RuntimeError, match="already been used"):
@@ -52,9 +53,22 @@ def test_rescoring_validation_reproduces_training_result_and_writes_nothing(tmp_
     rescored = score_experiment("tiny", "validation", **paths)
 
     assert rescored["accuracy"] == trained["accuracy"]
+    assert rescored["loss"] == trained["loss"]
+    assert rescored["confusion_matrix"] == trained["confusion_matrix"]
     assert not (paths["experiments_dir"] / "tiny" / TEST_RESULTS).exists()
 
 
 def test_unknown_split_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="split"):
         score_experiment("tiny", "train", experiments_dir=tmp_path)
+
+
+def test_a_quick_subset_run_cannot_spend_the_test_set(tmp_path):
+    folder = tmp_path / "smoke"
+    folder.mkdir()
+    (folder / "config.json").write_text(json.dumps({"model": "small_cnn", "subset": 64}))
+
+    with pytest.raises(ValueError, match="subset"):
+        score_experiment("smoke", "test", experiments_dir=tmp_path)
+
+    assert not (folder / TEST_RESULTS).exists()

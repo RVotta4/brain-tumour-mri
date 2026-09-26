@@ -43,10 +43,12 @@ def score_experiment(name, split, batch_size=32, dataset_path=DATASET_PATH, spli
                      experiments_dir=EXPERIMENTS_DIR):
     """Reload an experiment's saved model and score it on one split.
 
-    split="validation": prints and returns the scores, writes nothing. Used
-        to confirm the saved model reloads and matches its metrics.json.
+    split="validation": prints the scores next to the saved metrics.json accuracy
+        (MATCH or MISMATCH) and writes nothing. Used to confirm the saved model
+        reloads correctly.
     split="test": allowed once per project. Also writes test_metrics.json
         and test_confusion_matrix.png into the experiment's folder.
+    Refuses experiments trained on a --subset quick check.
     """
     if split not in ("validation", "test"):
         raise ValueError(f"split must be 'validation' or 'test', got {split!r}")
@@ -55,6 +57,10 @@ def score_experiment(name, split, batch_size=32, dataset_path=DATASET_PATH, spli
 
     folder = Path(experiments_dir) / name
     config = json.loads((folder / "config.json").read_text())
+    if split == "test" and config.get("subset"):
+        raise ValueError(f"{name} was a quick check on a {config['subset']}-scan subset, so it cannot be "
+                         "the final model; refusing to spend the test set on it.")
+    saved = json.loads((folder / "metrics.json").read_text())
     # No pretrained download needed: model.pt replaces every weight.
     model = build_model(config["model"], n_classes=len(CLASS_NAMES), pretrained=False)
     model.load_state_dict(torch.load(folder / "model.pt", weights_only=True))
@@ -73,6 +79,8 @@ def score_experiment(name, split, batch_size=32, dataset_path=DATASET_PATH, spli
     metrics = {
         "split": split,
         "experiment": name,
+        "best_epoch": saved["best_epoch"],
+        "best_loss_epoch": saved.get("best_loss_epoch"),
         "n_scans": len(result["y_true"]),
         "accuracy": round(result["accuracy"], 4),
         "loss": round(result["loss"], 4),
@@ -87,6 +95,9 @@ def score_experiment(name, split, batch_size=32, dataset_path=DATASET_PATH, spli
     print(f"{name} on {split}: accuracy {metrics['accuracy']:.1%} over {metrics['n_scans']} scans")
     for class_name, scores in metrics["per_class"].items():
         print(f"  {class_name:<11} precision {scores['precision']:.1%}  recall {scores['recall']:.1%}")
+    if split == "validation":
+        verdict = "MATCH" if metrics["accuracy"] == saved["accuracy"] else "MISMATCH"
+        print(f"  saved in metrics.json: accuracy {saved['accuracy']:.1%} -> {verdict}")
     return metrics
 
 
