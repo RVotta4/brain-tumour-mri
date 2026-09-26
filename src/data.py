@@ -128,7 +128,8 @@ def train_transform():
         realistic brain; upside-down never comes out of a scanner, so no
         vertical flips);
       - rotated by up to 10 degrees either way, like a small head tilt,
-        with the empty corners filled black to match the scan background;
+        smoothed so edges stay natural, with the empty corners filled black
+        to match the scan background;
       - brightness and contrast changed by up to 10%, like a different
         scanner or setting.
 
@@ -138,7 +139,7 @@ def train_transform():
     """
     return v2.Compose([
         v2.RandomHorizontalFlip(p=0.5),
-        v2.RandomRotation(degrees=10),
+        v2.RandomRotation(degrees=10, interpolation=v2.InterpolationMode.BILINEAR),
         v2.ColorJitter(brightness=0.1, contrast=0.1),
         v2.Lambda(clip_to_unit_range),
     ])
