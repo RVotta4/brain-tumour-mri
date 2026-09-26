@@ -55,3 +55,19 @@ def plot_confusion_matrix(matrix, class_names, path):
     fig.tight_layout()
     fig.savefig(path, dpi=120)
     plt.close(fig)
+
+
+def plot_augmentation(images, path):
+    """One scan and its augmented versions in a 2x4 grid.
+
+    images[0] is the original; the rest are the same scan after the random
+    training changes. Used to check by eye that augmentation looks realistic.
+    """
+    fig, axes = plt.subplots(2, 4, figsize=(10, 5.5))
+    for index, (ax, image) in enumerate(zip(axes.flat, images)):
+        ax.imshow(image, cmap="gray", vmin=0, vmax=1)
+        ax.set_title("original" if index == 0 else f"augmented {index}")
+        ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)

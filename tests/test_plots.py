@@ -1,4 +1,4 @@
-from src.plots import plot_confusion_matrix, plot_history
+from src.plots import plot_augmentation, plot_confusion_matrix, plot_history
 
 
 def test_plot_history_writes_png(tmp_path):
@@ -17,5 +17,16 @@ def test_plot_confusion_matrix_writes_png(tmp_path):
     path = tmp_path / "cm.png"
 
     plot_confusion_matrix([[5, 1, 0], [2, 7, 1], [0, 0, 4]], ["a", "b", "c"], path)
+
+    assert path.read_bytes()[:4] == b"\x89PNG"
+
+
+def test_plot_augmentation_writes_png(tmp_path):
+    import numpy as np
+
+    images = [np.random.default_rng(i).random((16, 16)) for i in range(8)]
+    path = tmp_path / "augmentation.png"
+
+    plot_augmentation(images, path)
 
     assert path.read_bytes()[:4] == b"\x89PNG"
