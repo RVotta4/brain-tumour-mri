@@ -43,7 +43,7 @@ Experiment 3 (pretrained ResNet-18, learning rate 1e-4) reached 93.0% validation
 
 - New flag `--augment` (default off), passed to `run_experiment` as `augment=False` and recorded in `config.json`.
 - Only the training `MRIDataset` receives `train_transform()`. Validation always sees unaltered scans.
-- When `augment` is on, the run saves `augmentation.png` in the experiment folder: one training scan and 7 augmented versions of it, in a 2×4 grid. The drawing function lives in `src/plots.py` alongside the existing plots.
+- When `augment` is on, the run saves `augmentation.png` in the experiment folder: one training scan and 7 augmented versions of it, in a 2×4 grid. The drawing function lives in `src/plots.py` alongside the existing plots. The preview is drawn after training finishes, so the random draws it uses cannot change the training run.
 
 **Experiment 4:**
 
@@ -53,19 +53,21 @@ Experiment 3 (pretrained ResNet-18, learning rate 1e-4) reached 93.0% validation
 
 Everything except `--augment` matches experiment 3. The expected runtime is about an hour; experiment 3 took 51 minutes.
 
-## 5. Test-set scoring (`src/evaluate.py`)
+## 5. Test-set scoring (`src/score.py`)
+
+A new module rather than an addition to `src/evaluate.py`: `train.py` already imports `evaluate.py`, and scoring needs `class_weights` from `train.py`, so putting it in `evaluate.py` would create a circular import.
 
 New command-line entry point:
 
 ```
-.\.venv\Scripts\python.exe -m src.evaluate --name <experiment> --split test
+.\.venv\Scripts\python.exe -m src.score --name <experiment> --split test
 ```
 
 - It reads the experiment's `config.json` for the model name, builds that model with `pretrained=False` (no download, since `model.pt` overwrites every weight) and loads `model.pt`.
 - It scores every scan from the test patients, using the same class-weighted loss as training (weights from the training split) so the loss figure is comparable.
 - It writes `test_metrics.json` (the same fields as `metrics.json`, with `"split": "test"`) and `test_confusion_matrix.png` into that experiment's folder, and prints accuracy and per-class precision and recall.
 - **One-shot guard:** before loading anything, it refuses with a clear message if any folder under `experiments/` already contains `test_metrics.json`. The "use the test set once" rule is enforced by the code, not just by intention. There is no override flag.
-- `--split validation` is also accepted and is not guarded; it re-scores the validation set, which is harmless and useful for checking that a saved model reloads correctly.
+- `--split validation` is also accepted and is not guarded. It prints the validation scores and writes no files. It is run on the final model just before the test score, to confirm the saved model reloads and reproduces its `metrics.json` accuracy, so the one-shot test score cannot be wasted on a loading bug.
 
 ## 6. Tests (pytest, synthetic data only)
 
