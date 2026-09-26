@@ -131,6 +131,10 @@ def train_transform():
         with the empty corners filled black to match the scan background;
       - brightness and contrast changed by up to 10%, like a different
         scanner or setting.
+
+    The brightness/contrast change comes after rotation on purpose: it then
+    shifts the filled corners and the scan's own dark background by the same
+    amount, so no visible seam appears for the model to latch onto.
     """
     return v2.Compose([
         v2.RandomHorizontalFlip(p=0.5),
