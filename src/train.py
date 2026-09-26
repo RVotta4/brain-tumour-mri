@@ -2,6 +2,7 @@
 
 Usage:
     .\\.venv\\Scripts\\python.exe -m src.train --name 01-small-cnn --model small_cnn --epochs 15
+    .\\.venv\\Scripts\\python.exe -m src.train --name 04-resnet18-augment --model resnet18 --lr 1e-4 --augment
 """
 
 import argparse
@@ -16,11 +17,12 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from src.data import CLASS_NAMES, DATASET_PATH, SPLITS_PATH, MRIDataset, indices_for_split, load_dataset, load_splits
+from src.data import (CLASS_NAMES, DATASET_PATH, SPLITS_PATH, MRIDataset, indices_for_split, load_dataset,
+                      load_splits, train_transform)
 from src.evaluate import evaluate_model
 from src.metrics import confusion_matrix, precision_recall
 from src.models import build_model
-from src.plots import plot_confusion_matrix, plot_history
+from src.plots import plot_augmentation, plot_confusion_matrix, plot_history
 
 EXPERIMENTS_DIR = Path(__file__).resolve().parent.parent / "experiments"
 
@@ -84,18 +86,20 @@ def best_loss_epoch(history):
     return min(history, key=lambda row: row["val_loss"])["epoch"]
 
 
-def run_experiment(name, model_name, epochs, batch_size, lr, seed, subset=0,
+def run_experiment(name, model_name, epochs, batch_size, lr, seed, subset=0, augment=False,
                    dataset_path=DATASET_PATH, splits_path=SPLITS_PATH, experiments_dir=EXPERIMENTS_DIR):
     """Train on the training patients, pick the best epoch on validation, save the record.
 
-    subset: if above 0, use only this many training and validation scans
-            (for a quick check that everything runs).
+    subset:  if above 0, use only this many training and validation scans
+             (for a quick check that everything runs).
+    augment: if True, training scans get random realistic changes each time
+             they are served. Validation scans are never changed.
     """
     set_seed(seed)
     out_dir = Path(experiments_dir) / name
     out_dir.mkdir(parents=True, exist_ok=True)
     config = {"name": name, "model": model_name, "epochs": epochs, "batch_size": batch_size,
-              "lr": lr, "seed": seed, "subset": subset}
+              "lr": lr, "seed": seed, "subset": subset, "augment": augment}
     (out_dir / "config.json").write_text(json.dumps(config, indent=2))
 
     data = load_dataset(dataset_path)
@@ -108,7 +112,7 @@ def run_experiment(name, model_name, epochs, batch_size, lr, seed, subset=0,
         val_idx = np.sort(rng.permutation(val_idx)[:subset])
 
     train_loader = DataLoader(
-        MRIDataset(data["images"], data["labels"], train_idx),
+        MRIDataset(data["images"], data["labels"], train_idx, transform=train_transform() if augment else None),
         batch_size=batch_size, shuffle=True, generator=torch.Generator().manual_seed(seed),
     )
     val_loader = DataLoader(MRIDataset(data["images"], data["labels"], val_idx), batch_size=batch_size)
@@ -160,6 +164,13 @@ def run_experiment(name, model_name, epochs, batch_size, lr, seed, subset=0,
     plot_history(history, out_dir / "curves.png")
     plot_confusion_matrix(matrix, CLASS_NAMES, out_dir / "confusion_matrix.png")
 
+    if augment:
+        # Drawn after training, so its random draws cannot change the run itself.
+        original = MRIDataset(data["images"], data["labels"], train_idx)[0][0]
+        transform = train_transform()
+        versions = [original] + [transform(original) for _ in range(7)]
+        plot_augmentation([version[0].numpy() for version in versions], out_dir / "augmentation.png")
+
     print(f"\nBest epoch {best_epoch}: validation accuracy {final['accuracy']:.1%}")
     for class_name, scores in metrics["per_class"].items():
         print(f"  {class_name:<11} precision {scores['precision']:.1%}  recall {scores['recall']:.1%}")
@@ -176,8 +187,10 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-3, help="learning rate: how big each nudge is")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--subset", type=int, default=0, help="use only this many scans (quick check)")
+    parser.add_argument("--augment", action="store_true", help="randomly flip, rotate and adjust training scans")
     args = parser.parse_args()
-    run_experiment(args.name, args.model, args.epochs, args.batch_size, args.lr, args.seed, args.subset)
+    run_experiment(args.name, args.model, args.epochs, args.batch_size, args.lr, args.seed,
+                   subset=args.subset, augment=args.augment)
 
 
 if __name__ == "__main__":

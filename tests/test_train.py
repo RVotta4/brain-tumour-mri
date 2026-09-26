@@ -127,3 +127,16 @@ def test_best_loss_epoch_keeps_the_earliest_on_a_tie():
     ]
 
     assert best_loss_epoch(history) == 1
+
+
+def test_run_experiment_with_augmentation_records_it_and_saves_a_preview(tmp_path):
+    dataset_path, splits_path = write_tiny_dataset(tmp_path)
+
+    run_experiment(
+        name="aug", model_name="small_cnn", epochs=1, batch_size=4, lr=1e-3, seed=42, augment=True,
+        dataset_path=dataset_path, splits_path=splits_path, experiments_dir=tmp_path / "experiments",
+    )
+
+    folder = tmp_path / "experiments" / "aug"
+    assert json.loads((folder / "config.json").read_text())["augment"] is True
+    assert (folder / "augmentation.png").exists()
