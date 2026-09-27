@@ -1,10 +1,14 @@
+import json
+
 import numpy as np
 import pytest
 import torch
 
 from src.explain import (class_scores, feature_maps, grad_cam, mask_share, patient_errors, pointing_chance,
-                         pointing_hit, summarise)
+                         pointing_hit, run_explanation, summarise)
 from src.models import ResNet18Grey, SmallCNN
+from src.score import score_experiment
+from tests.test_train import write_tiny_dataset
 
 
 def square_mask(size=64, top=20, left=20, width=10):
@@ -103,3 +107,42 @@ def test_summarise_compares_with_luck():
     assert summary["correct"]["scans"] == 1 and summary["wrong"]["scans"] == 1
     assert summary["by_true_type"]["pituitary"] is None
     assert summary["confident_mistakes"] == 1
+
+
+def tiny_scored_resnet(tmp_path):
+    """A tiny dataset with real tumour masks, and an untrained ResNet already scored on its test set."""
+    dataset_path, splits_path = write_tiny_dataset(tmp_path)
+    with np.load(dataset_path) as archive:
+        arrays = {key: archive[key] for key in archive.files}
+    arrays["masks"] = (arrays["images"] == 255).astype(np.uint8)  # the bright square is the "tumour"
+    np.savez_compressed(dataset_path, **arrays)
+
+    experiments_dir = tmp_path / "experiments"
+    folder = experiments_dir / "final"
+    folder.mkdir(parents=True)
+    torch.manual_seed(0)
+    torch.save(ResNet18Grey(weights=None).state_dict(), folder / "model.pt")
+    (folder / "config.json").write_text(json.dumps({"model": "resnet18", "subset": 0}))
+    (folder / "metrics.json").write_text(json.dumps({"best_epoch": 1, "accuracy": 0.0}))
+    paths = {"dataset_path": dataset_path, "splits_path": splits_path, "experiments_dir": experiments_dir}
+    score_experiment("final", "test", **paths)
+    return paths
+
+
+def test_explanation_refuses_before_the_test_score(tmp_path):
+    with pytest.raises(RuntimeError, match="test_metrics"):
+        run_explanation("final", experiments_dir=tmp_path)
+
+
+def test_explanation_writes_every_output(tmp_path):
+    paths = tiny_scored_resnet(tmp_path)
+
+    summary = run_explanation("final", **paths)
+
+    out_dir = paths["experiments_dir"] / "final" / "explain"
+    assert summary["reproduces_saved_test_score"] is True
+    assert summary["overall"]["scans"] == 9
+    assert len((out_dir / "test_scans.csv").read_text().strip().splitlines()) == 10  # header + 9 scans
+    assert len((out_dir / "patient_errors.csv").read_text().strip().splitlines()) == 4  # header + 3 patients
+    assert json.loads((out_dir / "summary.json").read_text())["overall"]["scans"] == 9
+    assert (out_dir / "gradcam_examples.png").exists()
