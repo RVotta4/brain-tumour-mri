@@ -79,7 +79,7 @@ def grad_cam(model, image):
     maps = feature_maps(model, image.unsqueeze(0))
     scores = class_scores(model, maps)[0]
     predicted = int(scores.argmax())
-    confidence = float(torch.softmax(scores, dim=0)[predicted])
+    confidence = float(torch.softmax(scores.detach(), dim=0)[predicted])
 
     # How much would the winning score rise if each map got stronger?
     (gradients,) = torch.autograd.grad(scores[predicted], maps)
