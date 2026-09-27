@@ -203,6 +203,9 @@ def run_explanation(name, dataset_path=DATASET_PATH, splits_path=SPLITS_PATH, ex
     summary["reproduces_saved_test_score"] = accuracy == saved["accuracy"]
     print(f"Test accuracy {accuracy:.1%} against saved {saved['accuracy']:.1%} -> "
           f"{'MATCH' if summary['reproduces_saved_test_score'] else 'MISMATCH'}")
+    if not summary["reproduces_saved_test_score"]:
+        raise RuntimeError("these predictions do not reproduce the saved test score, so they would not "
+                           "explain it; nothing was written")
 
     out_dir = folder / "explain"
     out_dir.mkdir(exist_ok=True)
@@ -232,7 +235,7 @@ def run_explanation(name, dataset_path=DATASET_PATH, splits_path=SPLITS_PATH, ex
                 continue
             image, mask, heatmap = panel(p)
             confident = row["confidence"] >= CONFIDENT
-            label = (f"said {row['predicted']} ({row['confidence']:.2f})"
+            label = (f"said {row['predicted']} ({row['confidence']:.3f})"
                      f"{' CONFIDENT' if confident else ''}\npatient {row['patient_id']}")
             items.append({"image": image, "mask": mask, "heatmap": heatmap, "label": label, "confident": confident})
         if items:
