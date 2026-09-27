@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 import torch
 
-from src.explain import class_scores, feature_maps, grad_cam, mask_share, pointing_chance, pointing_hit
+from src.explain import (class_scores, feature_maps, grad_cam, mask_share, patient_errors, pointing_chance,
+                         pointing_hit, summarise)
 from src.models import ResNet18Grey, SmallCNN
 
 
@@ -65,3 +66,40 @@ def test_two_half_forward_matches_the_model():
 def test_grad_cam_only_explains_the_resnet():
     with pytest.raises(TypeError, match="ResNet18Grey"):
         grad_cam(SmallCNN(), torch.rand(1, 224, 224))
+
+
+def scan_row(patient, true, predicted, hit=True, share=0.2, area=0.01, chance=0.05, confidence=0.8):
+    return {"patient_id": patient, "true": true, "predicted": predicted, "correct": true == predicted,
+            "confidence": confidence, "pointing_hit": hit, "pointing_chance": chance,
+            "mask_share": share, "mask_area": area}
+
+
+def test_patient_errors_counts_and_sorts_by_mistakes():
+    rows = [
+        scan_row("A", "glioma", "glioma"), scan_row("A", "glioma", "meningioma"),
+        scan_row("B", "meningioma", "glioma"), scan_row("B", "meningioma", "glioma"),
+        scan_row("B", "meningioma", "pituitary"),
+        scan_row("C", "pituitary", "pituitary"),
+    ]
+
+    table = patient_errors(rows)
+
+    assert [row["patient_id"] for row in table] == ["B", "A", "C"]
+    assert table[0] == {"patient_id": "B", "true": "meningioma", "slices": 3, "wrong": 3,
+                        "most_common_wrong_prediction": "glioma"}
+    assert table[2]["wrong"] == 0 and table[2]["most_common_wrong_prediction"] == ""
+
+
+def test_summarise_compares_with_luck():
+    rows = [
+        scan_row("A", "glioma", "glioma", hit=True, share=0.2, area=0.01),
+        scan_row("B", "meningioma", "glioma", hit=False, share=0.0, area=0.03, confidence=0.95),
+    ]
+
+    summary = summarise(rows)
+
+    assert summary["overall"]["pointing_hit_rate"] == 0.5
+    assert summary["overall"]["mask_share_times_luck"] == 5.0  # mean share 0.1 / mean area 0.02
+    assert summary["correct"]["scans"] == 1 and summary["wrong"]["scans"] == 1
+    assert summary["by_true_type"]["pituitary"] is None
+    assert summary["confident_mistakes"] == 1

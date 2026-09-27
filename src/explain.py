@@ -7,13 +7,17 @@ Runs on the test scans, and only once the test score exists. It never
 changes the model: whatever it finds is reported, not fixed.
 """
 
+from collections import Counter
+
 import numpy as np
 import torch
 from torch.nn import functional as F
 
+from src.data import CLASS_NAMES
 from src.models import ResNet18Grey
 
 TOLERANCE = 8  # pixels of leeway in the pointing game: a quarter of one 32-pixel heatmap cell
+CONFIDENT = 0.9  # a wrong answer at or above this confidence is a "confident mistake"
 
 
 def near_tumour(mask, tolerance=TOLERANCE):
@@ -85,3 +89,52 @@ def grad_cam(model, image):
     heatmap = cam.detach().numpy()
     peak = heatmap.max()
     return (heatmap / peak if peak > 0 else heatmap), predicted, confidence
+
+
+def patient_errors(rows):
+    """Mistakes counted per patient, most mistakes first.
+
+    Neighbouring slices of one patient look alike, so many missed slices can
+    be one hard patient rather than many separate failures.
+    """
+    by_patient = {}
+    for row in rows:
+        by_patient.setdefault(row["patient_id"], []).append(row)
+    table = []
+    for patient_id, scans in by_patient.items():
+        wrong = [scan["predicted"] for scan in scans if not scan["correct"]]
+        table.append({
+            "patient_id": patient_id,
+            "true": scans[0]["true"],
+            "slices": len(scans),
+            "wrong": len(wrong),
+            "most_common_wrong_prediction": Counter(wrong).most_common(1)[0][0] if wrong else "",
+        })
+    return sorted(table, key=lambda row: (-row["wrong"], row["patient_id"]))
+
+
+def group_stats(rows):
+    """Pointing-game hit rate and in-mask share for a group of scans, beside their luck baselines."""
+    if not rows:
+        return None
+    share = float(np.mean([row["mask_share"] for row in rows]))
+    area = float(np.mean([row["mask_area"] for row in rows]))
+    return {
+        "scans": len(rows),
+        "pointing_hit_rate": round(float(np.mean([row["pointing_hit"] for row in rows])), 4),
+        "pointing_chance": round(float(np.mean([row["pointing_chance"] for row in rows])), 4),
+        "mean_mask_share": round(share, 4),
+        "mean_mask_area": round(area, 4),
+        "mask_share_times_luck": round(share / area, 1) if area > 0 else None,
+    }
+
+
+def summarise(rows):
+    """The headline numbers: overall, correct versus wrong, and per true tumour type."""
+    return {
+        "overall": group_stats(rows),
+        "correct": group_stats([row for row in rows if row["correct"]]),
+        "wrong": group_stats([row for row in rows if not row["correct"]]),
+        "by_true_type": {name: group_stats([row for row in rows if row["true"] == name]) for name in CLASS_NAMES},
+        "confident_mistakes": sum(1 for row in rows if not row["correct"] and row["confidence"] >= CONFIDENT),
+    }
