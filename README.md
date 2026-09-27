@@ -2,8 +2,10 @@
 
 Classifying brain tumour type (glioma, meningioma, pituitary) from MRI slices with deep learning, built step by step to understand how the model learns, and where its results can mislead.
 
-> **Status:** in progress. Experiments 1–3 complete (baseline CNN, then pretrained ResNet-18); augmentation, the final test-set score, heatmaps and a live demo are next.
+> **Status:** in progress. Experiments 1–4 complete and the final model scored once on the test set; heatmaps and a live demo are next.
 > **Educational project, not a medical device, not for diagnosis.**
+
+**Result:** 90.9% test accuracy (patient-level split, scored once); meningioma remains the hardest type at 0.76 recall. [Details below.](#final-test-results)
 
 ## Why this project
 
@@ -22,10 +24,11 @@ During my internship at Siemens working on MRI, I learned that AI is being used 
 | 1 | SmallCNN from scratch | 1e-3 | 73.7% | 0.18 | 51 points |
 | 2 | ResNet-18 pretrained | 1e-3 | 88.0% | 0.84 | 38 points |
 | 3 | ResNet-18 fine-tuned | 1e-4 | **93.0%** | **0.93** | **9 points** |
+| 4 | ResNet-18 fine-tuned + augmentation | 1e-4 | 94.1% | 0.94 | 12 points |
 
-"Spread" is the gap between the best and worst validation accuracy across the 15 epochs — a rough measure of how unstable training was. Everything else (data, split, 15 epochs, batch size 32, Adam, seed, class weights, no augmentation) is identical across all three runs.
+"Spread" is the gap between the best and worst validation accuracy across the 15 epochs — a rough measure of how unstable training was. Everything else (data, split, 15 epochs, batch size 32, Adam, seed, class weights) is identical across all four runs; only experiment 4 uses augmentation.
 
-Swapping the from-scratch SmallCNN for an ImageNet-pretrained ResNet-18 lifted validation accuracy from 74% to 88% and meningioma recall from 0.18 to 0.84. That swap changed the architecture and the starting weights together, so it shows the pretrained ResNet-18 is better, not how much of the gain is pretraining alone. Cutting the learning rate tenfold was a clean one-variable change: the spread fell from 38 points to 9, and the best-accuracy and best-loss epochs now agree (both epoch 3), so the 93% is no longer a lucky peak on a noisy curve. Experiment 3 is the model carried into the next stage.
+Swapping the from-scratch SmallCNN for an ImageNet-pretrained ResNet-18 lifted validation accuracy from 74% to 88% and meningioma recall from 0.18 to 0.84. That swap changed the architecture and the starting weights together, so it shows the pretrained ResNet-18 is better, not how much of the gain is pretraining alone. Cutting the learning rate tenfold was a clean one-variable change: the spread fell from 38 points to 9, and the best-accuracy and best-loss epochs now agree (both epoch 3), so the 93% is no longer a lucky peak on a noisy curve. Augmentation (experiment 4) added 1.1 points, short of the 2-point margin set in advance, so experiment 3 is the final model (see [Final test results](#final-test-results)).
 
 ### Experiment 1: small CNN from scratch
 
@@ -92,7 +95,47 @@ Overall validation accuracy: 93.0%.
 
 **Why the curve steadied is not fully pinned down.** In the unstable runs, the worst epochs look like the model predicting nearly one class: experiment 1's 22.8% is exactly the share of meningiomas in the validation set, and experiment 2's 50.3% sits next to the glioma share (49.7%), all while training accuracy stayed high. A learning rate that is too large can cause that by overshooting, but so can BatchNorm layers whose stored averages lag behind rapidly changing weights, which only bites in evaluation mode. A smaller learning rate fixes both, so these runs show the fix works without isolating the cause.
 
-All three accuracies are validation scores, used to choose between models, and therefore slightly optimistic. The test set stays untouched until the final model is chosen and will be scored once.
+### Experiment 4: adding augmentation
+
+Identical to experiment 3, except each training scan is randomly changed every time it is used: mirrored left-right half the time, rotated up to 10° (smoothly, so edges stay natural), and brightness and contrast shifted up to 10%. Validation scans are never changed. No vertical flips, because an upside-down brain never comes out of a scanner.
+
+![Augmentation examples](experiments/04-resnet18-augment/augmentation.png)
+
+![Training curves](experiments/04-resnet18-augment/curves.png)
+
+**Validation results** (best epoch 8, 457 scans):
+
+| Tumour type | Precision | Recall |
+|---|---|---|
+| Glioma | 0.96 | 0.94 |
+| Meningioma | 0.84 | 0.94 |
+| Pituitary | 1.00 | 0.94 |
+
+Overall validation accuracy: 94.1%.
+
+![Confusion matrix](experiments/04-resnet18-augment/confusion_matrix.png)
+
+**What this shows.** Augmentation made 27 mistakes where experiment 3 made 32, with pituitary recall improving most (0.89 → 0.94), and it reached the lowest validation loss of any run (0.154). But it barely slowed memorisation — training accuracy still passed 99% by epoch 5 — and its curve was slightly less steady (a 12-point spread, and the best-accuracy and best-loss epochs disagree: 8 against 4). A 1.1-point gain is smaller than the epoch-to-epoch swings, so this is a small improvement that one run cannot confirm, not a clear win.
+
+All four accuracies above are validation scores, used to choose between models, and therefore slightly optimistic.
+
+## Final test results
+
+**The rule, written before experiment 4 ran:** experiment 4 would become the final model only if it beat experiment 3's 93.0% validation accuracy by at least 2 points (≥ 95.0%); otherwise experiment 3 would. A smaller margin is within epoch-to-epoch noise, and a tie goes to the simpler model. Experiment 4 scored 94.1%, so the final model is **experiment 3** (pretrained ResNet-18, fine-tuned at learning rate 1e-4, no augmentation).
+
+That model was then scored **once** on the 34 test patients (430 scans) that had played no part in any decision. Before scoring, reloading the saved model reproduced its validation result exactly. The code refuses a second test score.
+
+| Tumour type | Precision | Recall |
+|---|---|---|
+| Glioma | 0.93 | 0.94 |
+| Meningioma | 0.77 | 0.76 |
+| Pituitary | 0.95 | 0.95 |
+
+**Test accuracy: 90.9%** (validation: 93.0%).
+
+![Test confusion matrix](experiments/03-resnet18-finetuned/test_confusion_matrix.png)
+
+The 2-point drop from validation is expected: every choice — which epoch, which learning rate, which model — was made by looking at validation, so validation was slightly tuned in the model's favour, while the test patients influenced nothing. Glioma and pituitary held up (0.94 and 0.95 recall). Meningioma did not: 61 of 80 caught, with most misses called glioma, against 0.93 recall on validation. It was the class that got the most attention during development, so its validation score was the most flattered — which is exactly why a separate test set is kept. The 80 meningioma slices come from only a handful of patients, so a few hard patients may account for most of the misses; the next stage looks at where the model is looking on those mistakes.
 
 ## Limitations
 
@@ -112,6 +155,9 @@ Requires Windows with Python 3.13.
     .\.venv\Scripts\python.exe -m src.train --name 01-small-cnn --model small_cnn --epochs 15
     .\.venv\Scripts\python.exe -m src.train --name 02-resnet18-lr1e-3 --model resnet18 --epochs 15 --lr 1e-3
     .\.venv\Scripts\python.exe -m src.train --name 03-resnet18-finetuned --model resnet18 --epochs 15 --lr 1e-4
+    .\.venv\Scripts\python.exe -m src.train --name 04-resnet18-augment --model resnet18 --epochs 15 --lr 1e-4 --augment
+    .\.venv\Scripts\python.exe -m src.score --name 03-resnet18-finetuned --split validation
+    .\.venv\Scripts\python.exe -m src.score --name 03-resnet18-finetuned --split test
 
 The first ResNet-18 run downloads its ImageNet weights (~45 MB) once.
 

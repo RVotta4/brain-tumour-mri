@@ -165,3 +165,35 @@ So the model was fine while training and broken while being evaluated. Two expla
 Lowering the learning rate cures both, so experiment 3 proves the fix rather than the cause. A cheap way to tell them apart would be to also score the *training* set in evaluation mode each epoch: if that collapses too, BatchNorm is the culprit.
 
 > **Say:** "My worst epochs scored exactly one class's share of the data — the model was predicting one class for everything, while training accuracy was over 90%. That points at a train-versus-evaluation difference, likely BatchNorm statistics lagging a fast-moving model. A lower learning rate fixed it; I'm careful not to claim I've proved which cause it was."
+
+## 14. Data augmentation
+
+A model that has seen the same 2,100 scans fifteen times can simply memorise them — experiment 3 reached 100% training accuracy by epoch 5. Augmentation changes each scan slightly every time it is served: mirrored, tilted a few degrees, a little brighter or darker. The model never sees exactly the same image twice, so memorising pixels stops paying off and it has to learn what a tumour looks like.
+
+The changes must be ones a real scanner could produce. A mirrored brain is still a realistic brain, a slight tilt is a patient's head position, and brightness varies between scanners. An upside-down brain never comes out of an MRI machine, so there are no vertical flips — teaching the model to handle impossible images wastes its capacity. Details matter too: rotation is smoothed so skull edges don't turn jagged, and the brightness change runs after rotation so the filled-in corners match the scan's own background instead of leaving a seam the model could latch onto.
+
+Augmentation is applied to training only. Validation and test scans stay untouched, otherwise their scores would change from run to run for reasons unrelated to the model.
+
+In experiment 4 it helped a little — 27 validation mistakes instead of 32 — but training accuracy still passed 99% by epoch 5. Gentle, realistic changes on 2,100 scans are not enough to stop an 11-million-parameter network memorising.
+
+> **Say:** "Augmentation shows the model a slightly different version of each scan every epoch — mirrored, tilted, brightness shifted — only changes a real scanner could produce, and only on training data. It cut my validation mistakes from 32 to 27, but the network still memorised the training set, so the gain was too small to call."
+
+## 15. Deciding the rule before seeing the result
+
+Experiment 3 scored 93.0% on validation. If experiment 4 came in at 93.5%, is it better? Validation accuracy moved by up to 9 points from one epoch to the next in experiment 3, so half a point is noise.
+
+The danger is choosing the rule after seeing the numbers — "higher accuracy wins" when that suits, "lower loss wins" when that suits. Each choice feels reasonable, and together they quietly pick whatever looks best. So the rule was written into the spec before experiment 4 ran: augmentation had to win by at least 2 points (95.0%), otherwise the simpler model stayed. In science this is called pre-registration.
+
+Experiment 4 scored 94.1%. Higher, but short of the bar, so experiment 3 stayed the final model — even though "pick the bigger number" was tempting in the moment.
+
+> **Say:** "I wrote the model-selection rule down before running the final experiment — it had to win by two points, or the simpler model stayed. Augmentation came in one point higher, so I kept the simpler model. Deciding the rule after seeing results lets you pick whatever looks best without meaning to."
+
+## 16. Why the test set is used once
+
+Every decision in this project — which epoch to keep, which learning rate, which model — was made by looking at validation scores. That makes validation a little flattering: the choices were tuned to it. The 34 test patients influenced nothing, which is the only reason their score is an honest estimate of performance on new patients.
+
+That honesty survives exactly one look. Score the test set, adjust something, score again, and the test set has become a second validation set. So `src/score.py` refuses to score the test set if any experiment already has test results — and it did refuse, when a second attempt was made by accident.
+
+Final model on test: 90.9%, against 93.0% on validation. The biggest drop was meningioma recall, 0.93 → 0.76 — the class that got the most attention during development was the most flattered by validation.
+
+> **Say:** "The test set was touched once, at the very end, and the code refuses a second look. Validation was used for every decision, so it's slightly optimistic — 93% there, 90.9% on test. The biggest drop was meningioma, the class I'd focused on most, which is exactly the bias a held-out test set exists to catch."
