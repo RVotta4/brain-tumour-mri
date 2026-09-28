@@ -445,7 +445,7 @@ def test_the_browser_pipeline_matches_python(tmp_path):
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "# skip 0" in result.stdout, "some browser tests were skipped"
+    assert "# skipped 0" in result.stdout, "some browser tests were skipped"  # Node 24's TAP wording
 ```
 
 - [ ] **Step 3: Run to verify they fail**
