@@ -8,11 +8,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from matplotlib import colormaps
 from PIL import Image
 
 from src.data import preprocess_image
 
 EXAMPLES_DIR = Path(__file__).resolve().parent / "examples"
+
+HEAT_ALPHA = 0.45  # how strongly the heatmap tints the scan, as in the Stage 4 figures
+OUTLINE_COLOUR = (0, 255, 0)  # lime, as in the Stage 4 figures
+OUTLINE_WIDTH = 2  # pixels
 
 
 @dataclass
@@ -86,3 +91,33 @@ def scan_pixels(image, examples):
     if example is not None:
         return example.scan, example
     return preprocess_image(grey), None
+
+
+def outline(mask, width=OUTLINE_WIDTH):
+    """The tumour's border: tumour pixels within `width` pixels of non-tumour.
+
+    Each round of erosion peels one pixel off the tumour's edge (a pixel stays
+    only if it and its four neighbours are all tumour); what was peeled off is
+    the border.
+    """
+    inside = mask > 0
+    core = inside.copy()
+    for _ in range(width):
+        padded = np.pad(core, 1, constant_values=False)
+        core = (padded[1:-1, 1:-1] & padded[:-2, 1:-1] & padded[2:, 1:-1]
+                & padded[1:-1, :-2] & padded[1:-1, 2:])
+    return inside & ~core
+
+
+def overlay(pixels, heatmap, mask=None):
+    """The scan in grey, tinted by the heatmap, with the tumour outline if one is known.
+
+    pixels: (height, width) uint8 scan. heatmap: same size, values in [0, 1].
+    Returns a (height, width, 3) uint8 colour image.
+    """
+    grey = np.repeat(pixels[..., None].astype(np.float32) / 255.0, 3, axis=2)
+    heat = colormaps["jet"](heatmap)[..., :3]  # drop the alpha channel
+    image = np.round(((1 - HEAT_ALPHA) * grey + HEAT_ALPHA * heat) * 255).astype(np.uint8)
+    if mask is not None:
+        image[outline(mask)] = OUTLINE_COLOUR
+    return image

@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from app.demo import Example, find_example, load_examples, scan_pixels, to_grey
+from app.demo import Example, OUTLINE_COLOUR, find_example, load_examples, outline, overlay, scan_pixels, to_grey
 
 
 def fake_example(seed=0):
@@ -88,3 +88,45 @@ def test_load_examples_reads_the_folder(tmp_path):
     assert np.array_equal(example.scan, scan)
     assert np.array_equal(example.mask, mask)
     assert (example.patient_id, example.true, example.caption, example.note) == ("P9", "pituitary", "Pituitary — correct", "Hello.")
+
+
+def square_mask(size=64, top=20, left=20, width=10):
+    mask = np.zeros((size, size), dtype=np.uint8)
+    mask[top:top + width, left:left + width] = 1
+    return mask
+
+
+def test_outline_is_the_border_of_the_tumour():
+    mask = square_mask()  # a 10x10 square
+
+    assert outline(mask, width=1).sum() == 36  # 100 pixels minus the 8x8 inside
+    assert outline(mask, width=2).sum() == 64  # 100 pixels minus the 6x6 inside
+    assert not outline(mask, width=2)[25, 25]  # the middle is not border
+    assert not outline(mask, width=2)[mask == 0].any()  # nothing outside the tumour
+    assert not outline(np.zeros((64, 64), dtype=np.uint8)).any()
+
+
+def is_outline_colour(image):
+    return (image == OUTLINE_COLOUR).all(axis=2)
+
+
+def test_overlay_draws_the_outline_only_on_the_border():
+    mask = square_mask()
+    black = np.zeros((64, 64), dtype=np.uint8)
+    cold = np.zeros((64, 64), dtype=np.float32)
+
+    with_outline = overlay(black, cold, mask)
+    without = overlay(black, cold)
+
+    assert with_outline.shape == (64, 64, 3)
+    assert with_outline.dtype == np.uint8
+    assert np.array_equal(is_outline_colour(with_outline), outline(mask))
+    assert not is_outline_colour(without).any()
+
+
+def test_overlay_blends_scan_and_heatmap_like_the_stage_4_figures():
+    white = np.full((4, 4), 255, dtype=np.uint8)
+    cold = np.zeros((4, 4), dtype=np.float32)  # jet at 0 is dark blue: (0, 0, 0.5)
+
+    # 55% white scan + 45% dark blue: red and green 0.55 * 255 = 140.25; blue (0.55 + 0.45 * 0.5) * 255 = 197.6
+    assert overlay(white, cold)[0, 0].tolist() == [140, 140, 198]
