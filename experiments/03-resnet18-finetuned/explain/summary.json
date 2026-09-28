@@ -1,0 +1,55 @@
+{
+  "overall": {
+    "scans": 430,
+    "pointing_hit_rate": 0.1977,
+    "pointing_chance": 0.0396,
+    "mean_mask_share": 0.0252,
+    "mean_mask_area": 0.0145,
+    "mask_share_times_luck": 1.7
+  },
+  "correct": {
+    "scans": 391,
+    "pointing_hit_rate": 0.2072,
+    "pointing_chance": 0.0399,
+    "mean_mask_share": 0.0255,
+    "mean_mask_area": 0.0147,
+    "mask_share_times_luck": 1.7
+  },
+  "wrong": {
+    "scans": 39,
+    "pointing_hit_rate": 0.1026,
+    "pointing_chance": 0.0366,
+    "mean_mask_share": 0.0219,
+    "mean_mask_area": 0.0127,
+    "mask_share_times_luck": 1.7
+  },
+  "by_true_type": {
+    "meningioma": {
+      "scans": 80,
+      "pointing_hit_rate": 0.1375,
+      "pointing_chance": 0.0347,
+      "mean_mask_share": 0.0276,
+      "mean_mask_area": 0.012,
+      "mask_share_times_luck": 2.3
+    },
+    "glioma": {
+      "scans": 222,
+      "pointing_hit_rate": 0.3288,
+      "pointing_chance": 0.0473,
+      "mean_mask_share": 0.0327,
+      "mean_mask_area": 0.0187,
+      "mask_share_times_luck": 1.8
+    },
+    "pituitary": {
+      "scans": 128,
+      "pointing_hit_rate": 0.0078,
+      "pointing_chance": 0.0292,
+      "mean_mask_share": 0.0107,
+      "mean_mask_area": 0.0089,
+      "mask_share_times_luck": 1.2
+    }
+  },
+  "confident_mistakes": 16,
+  "test_accuracy": 0.9093,
+  "reproduces_saved_test_score": true
+}
