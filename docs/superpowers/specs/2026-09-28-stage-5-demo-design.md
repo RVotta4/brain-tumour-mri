@@ -28,14 +28,14 @@ The model is frozen (see Stage 4): the demo shows experiment 3 exactly as scored
 
 ## 3. Processing an image
 
-1. Convert the image to greyscale (colour images and images with transparency included).
-2. `preprocess_image()` from `src/data.py`: min-max stretch to 0–255 and resize to 224×224. Non-square images are squashed, as in training.
-3. Divide by 255 to get values in [0, 1], shape (1, 224, 224).
-4. `grad_cam()` gives the heatmap, predicted class and confidence. The three confidences for the bars come from the softmax of the same forward pass.
+1. Convert the image to greyscale (colour images and images with transparency included; 16-bit greyscale keeps its full range).
+2. **If the greyscale pixels are identical to an example scan, use that example's stored pixels as they are.** Otherwise, `preprocess_image()` from `src/data.py`: min-max stretch to 0–255 and resize to 224×224. Non-square images are squashed, as in training.
+3. Divide by 255 to get values in [0, 1], shape (1, 224, 224) — as `MRIDataset` does.
+4. `grad_cam()` gives the heatmap, predicted class and confidence. The three confidences for the bars come from a softmax over a plain forward pass of the same model.
 
-These are the same steps the test scans went through, so clicking an example reproduces the confidence recorded for that scan in `experiments/03-resnet18-finetuned/explain/test_scans.csv`. This is the check that the demo runs the real model.
+**Why examples skip `preprocess_image()`.** The stored scans were stretched to 0–255 *before* being shrunk to 224×224, so most no longer reach exactly 0 and 255. Stretching them a second time changes their pixels (by up to 39 levels on the chosen examples), and the model would then see a slightly different image from the one it was tested on. Using the stored pixels means clicking an example reproduces the confidence recorded for that scan in `experiments/03-resnet18-finetuned/explain/test_scans.csv`. This is the check that the demo runs the real model.
 
-**Recognising an example.** The app compares the prepared 224×224 pixels with each example scan. If they are identical, it is that example, and its outline and note are shown. This also works if someone downloads an example and uploads it again. Any other image is treated as an upload with no outline.
+**Recognising an example.** Comparing greyscale pixels also works if someone downloads an example and uploads it again. It then gets its outline and note. Any other image is treated as an upload with no outline.
 
 ## 4. Example scans
 
@@ -59,21 +59,24 @@ These are the same steps the test scans went through, so clicking an example rep
 | `app/make_examples.py` | Copies the chosen test scans and outlines from `cheng_224.npz` into `app/examples/` and writes `examples.csv`. |
 | `app/deploy.py` | Creates the Space if missing (public, Gradio, free CPU) and uploads everything it needs in one commit (section 6). |
 | `app/requirements.txt` | The Space's dependencies, pointing pip at PyTorch's CPU-only build via `--extra-index-url https://download.pytorch.org/whl/cpu`. Without this, Linux installs the ~2 GB GPU build. |
-| `app/README.md` | The Space's page, starting with the settings header Hugging Face reads (title, `sdk: gradio`, pinned `sdk_version`, `app_file: app.py`). |
+| `app/README.md` | The Space's page, starting with the settings header Hugging Face reads (title, `sdk: gradio`, pinned `sdk_version`, `app_file: app/app.py`). |
 
-**Loading the model.** `build_model("resnet18", pretrained=False)` then `load_state_dict(torch.load(path, weights_only=True))`, as `score.py` does. `pretrained=False` avoids downloading ImageNet weights, which would be overwritten anyway. The model file is looked for next to `app.py` first (the Space layout), then at `experiments/03-resnet18-finetuned/model.pt` (the laptop layout), so the same code runs in both places. If neither exists, the app stops with a clear message.
+**The Space mirrors the repo's folder layout.** It holds `app/`, the four `src/` files and `experiments/03-resnet18-finetuned/model.pt` at the same paths as the repo, and its settings point at `app_file: app/app.py`. So the app finds the model and examples at the same relative paths on the laptop and on the Space, with no special cases.
 
-**Imports.** `app.py` and `demo.py` import `src.*`. On the laptop the app runs from the repo root as `python -m app.app`; on the Space, `src/` sits next to `app.py`. Both layouts resolve the same imports.
+**Loading the model.** `build_model("resnet18", pretrained=False)` then `load_state_dict(torch.load(path, weights_only=True))`, as `score.py` does. `pretrained=False` avoids downloading ImageNet weights, which would be overwritten anyway. If the model file is missing, the app stops with a clear message.
 
-**Local install.** Gradio goes in `app/requirements.txt`, not the main `requirements.txt`. Robbi installs it into the existing `.venv` for local runs (about 150–250 MB). The pytest suite does not need it, because tests only import `app/demo.py`.
+**Imports.** Hugging Face runs the app as `python app/app.py`. Python then puts the `app/` folder itself first on its import path, where `app.py` would hide the `app` package. So `app/app.py` first puts the repo root at the front of the import path, then imports `app.demo` and `src.*`. The same command works on the laptop: `.\.venv\Scripts\python.exe app\app.py`.
+
+**Local install.** Gradio is not in either requirements file: on the Space, Hugging Face installs the Gradio version named in the Space README. Robbi installs the same version into the existing `.venv` for local runs (about 150–250 MB). The pytest suite does not need it, because tests only import `app/demo.py` and `app/deploy.py`'s file list. `huggingface_hub`, used by `app/deploy.py`, comes with Gradio.
 
 ## 6. Deploying
 
 1. Robbi runs `hf auth login` once and pastes a write-access token created on the Hugging Face website. The token never passes through Claude.
-2. Robbi runs `python -m app.deploy --space <username>/brain-tumour-mri`. In one commit it uploads:
-   - from `app/`: `app.py`, `demo.py`, `requirements.txt`, `README.md`, `examples/`;
-   - from `src/`: `__init__.py`, `models.py`, `data.py`, `gradcam.py`;
-   - `experiments/03-resnet18-finetuned/model.pt` as `model.pt`.
+2. Robbi runs `python -m app.deploy --space <username>/brain-tumour-mri`. In one commit it uploads, at the same paths as in the repo:
+   - `app/__init__.py`, `app/app.py`, `app/demo.py`, `app/examples/`;
+   - `src/__init__.py`, `src/models.py`, `src/data.py`, `src/gradcam.py`;
+   - `experiments/03-resnet18-finetuned/model.pt`;
+   - `app/README.md` as the Space's root `README.md`, and `app/requirements.txt` as its root `requirements.txt` (where Hugging Face looks for them).
 3. Hugging Face builds the Space (a few minutes). It is then live at `https://huggingface.co/spaces/<username>/brain-tumour-mri`.
 
 `model.pt` goes only to Hugging Face, never to GitHub. Re-running the deploy command updates the Space.
@@ -97,7 +100,7 @@ These are the same steps the test scans went through, so clicking an example rep
 - **Refactor:** the existing 63 tests still pass after the move to `src/gradcam.py`.
 
 **Manual checks (Robbi):**
-1. Local: `python -m app.app`, open `http://localhost:7860`, click every example and compare its confidence with `test_scans.csv`; upload a non-MRI image and confirm it still predicts one of the three types.
+1. Local: `.\.venv\Scripts\python.exe app\app.py`, open `http://localhost:7860`, click every example and compare its confidence with `test_scans.csv`; upload a non-MRI image and confirm it still predicts one of the three types.
 2. Live: the same checks on the deployed Space.
 
 ## 9. Pauses and write-up
