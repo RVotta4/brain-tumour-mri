@@ -1,64 +1,85 @@
-"""Upload the live demo to a Hugging Face Space.
+"""Put the live demo on a free static Hugging Face Space, or preview it locally.
 
-Usage (after `hf auth login`):
-    .\\.venv\\Scripts\\python.exe -m app.deploy --space <username>/brain-tumour-mri
+Usage:
+    .\\.venv\\Scripts\\python.exe -m app.deploy --preview space_preview
+    .\\.venv\\Scripts\\python.exe -m app.deploy --space <username>/brain-tumour-mri   (after `hf auth login`)
 
-The Space mirrors this repo's folders, so the app finds everything at the same
-paths as on the laptop. The model goes to Hugging Face only, never to GitHub.
-Running it again uploads the current files as a new commit on the Space.
+A static Space only hands files to the visitor's browser, which runs the model
+itself. The model goes to Hugging Face only, never to GitHub. Running --space
+again uploads the current files as a new commit on the Space.
 """
 
 import argparse
+import csv
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-
-# Uploaded at the same path as in this repo.
-CODE = [
-    "app/__init__.py",
-    "app/app.py",
-    "app/demo.py",
-    "src/__init__.py",
-    "src/data.py",
-    "src/gradcam.py",
-    "src/models.py",
-    "experiments/03-resnet18-finetuned/model.pt",
-]
-# Uploaded to where Hugging Face looks for them: the Space's top folder.
-RENAMED = {"app/README.md": "README.md", "app/requirements.txt": "requirements.txt"}
+PAGE = ["index.html", "style.css", "pipeline.js", "app.js"]
+MODEL = "experiments/03-resnet18-finetuned/model.onnx"
+EXAMPLE_FIELDS = ["name", "patient_id", "true", "caption", "note"]  # what the page shows about each example
 
 
-def files_to_upload(root=ROOT):
-    """Map each local file to its path on the Space, refusing if any is missing."""
+def examples_json(examples_dir):
+    """The example list the page reads, made from app/examples/examples.csv so the text lives in one place."""
+    with open(examples_dir / "examples.csv", newline="", encoding="utf-8") as f:
+        rows = [{field: row[field] for field in EXAMPLE_FIELDS} for row in csv.DictReader(f)]
+    return json.dumps(rows, indent=2, ensure_ascii=False).encode("utf-8")
+
+
+def site_files(root=ROOT):
+    """Everything the Space serves: its path there -> a local file, or the bytes to write."""
     root = Path(root)
-    files = {root / path: path for path in CODE}
-    files.update({root / local: remote for local, remote in RENAMED.items()})
-    for path in sorted((root / "app" / "examples").iterdir()):
-        files[path] = f"app/examples/{path.name}"
-    missing = [str(path) for path in files if not path.is_file()]
+    files = {name: root / "space" / name for name in PAGE}
+    files["README.md"] = root / "space" / "README.md"
+    files["model.onnx"] = root / MODEL
+    examples_dir = root / "app" / "examples"
+    for path in sorted(examples_dir.glob("*.png")):
+        files[f"examples/{path.name}"] = path
+    missing = [str(path) for path in files.values() if not path.is_file()]
     if missing:
         raise FileNotFoundError("missing: " + ", ".join(missing))
+    files["examples.json"] = examples_json(examples_dir)
     return files
 
 
+def preview(folder, root=ROOT):
+    """Write the site into a local folder, exactly as it will be uploaded."""
+    folder = Path(folder)
+    for remote, source in site_files(root).items():
+        target = folder / remote
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source if isinstance(source, bytes) else source.read_bytes())
+    print(f"Wrote the site to {folder}. To view it, run\n"
+          f"    .\\.venv\\Scripts\\python.exe -m http.server 8000 --directory {folder}\n"
+          "then open http://localhost:8000 (Ctrl+C stops the server).")
+
+
 def deploy(space):
-    """Create the Space if needed (public, Gradio, free CPU), then upload everything in one commit."""
+    """Create the static Space if needed (public, free), then upload everything in one commit."""
     from huggingface_hub import CommitOperationAdd, HfApi  # comes with Gradio; not needed by the tests
 
     api = HfApi()
-    api.create_repo(space, repo_type="space", space_sdk="gradio", private=False, exist_ok=True)
-    operations = [CommitOperationAdd(path_in_repo=remote, path_or_fileobj=str(local))
-                  for local, remote in files_to_upload().items()]
+    api.create_repo(space, repo_type="space", space_sdk="static", private=False, exist_ok=True)
+    operations = [CommitOperationAdd(path_in_repo=remote,
+                                     path_or_fileobj=source if isinstance(source, bytes) else str(source))
+                  for remote, source in site_files().items()]
     api.create_commit(repo_id=space, repo_type="space", operations=operations,
                       commit_message="Deploy the demo from github.com/RVotta4/brain-tumour-mri")
-    print(f"Uploaded {len(operations)} files. The Space builds in a few minutes: "
+    print(f"Uploaded {len(operations)} files. It should be live within a minute: "
           f"https://huggingface.co/spaces/{space}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Upload the live demo to a Hugging Face Space.")
-    parser.add_argument("--space", required=True, help="<username>/<space-name>")
-    deploy(parser.parse_args().space)
+    parser = argparse.ArgumentParser(description="Put the live demo on a static Hugging Face Space.")
+    where = parser.add_mutually_exclusive_group(required=True)
+    where.add_argument("--space", help="<username>/<space-name> on Hugging Face")
+    where.add_argument("--preview", help="a local folder to write the site into")
+    args = parser.parse_args()
+    if args.preview:
+        preview(args.preview)
+    else:
+        deploy(args.space)
 
 
 if __name__ == "__main__":

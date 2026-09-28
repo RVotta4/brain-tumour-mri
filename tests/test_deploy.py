@@ -1,48 +1,60 @@
-import subprocess
-import sys
-from pathlib import Path
+import csv
+import json
 
 import pytest
 
-from app.deploy import CODE, RENAMED, files_to_upload
-
-ROOT = Path(__file__).resolve().parent.parent
+from app.deploy import MODEL, PAGE, preview, site_files
 
 
 def make_fake_repo(root):
-    for path in CODE + list(RENAMED):
-        (root / path).parent.mkdir(parents=True, exist_ok=True)
-        (root / path).write_text("x")
-    (root / "app" / "examples").mkdir(exist_ok=True)
-    for name in ["a.png", "a_mask.png", "examples.csv"]:
-        (root / "app" / "examples" / name).write_text("x")
+    for name in PAGE + ["README.md"]:
+        (root / "space").mkdir(exist_ok=True)
+        (root / "space" / name).write_text("x")
+    (root / MODEL).parent.mkdir(parents=True)
+    (root / MODEL).write_text("x")
+    examples = root / "app" / "examples"
+    examples.mkdir(parents=True)
+    for name in ["a.png", "a_mask.png"]:
+        (examples / name).write_text("x")
+    with open(examples / "examples.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["name", "index", "patient_id", "true", "caption", "note"])
+        writer.writeheader()
+        writer.writerow({"name": "a", "index": 7, "patient_id": "P1", "true": "glioma",
+                         "caption": "Glioma — correct", "note": "Hi, there."})
 
 
-def test_files_to_upload_mirrors_the_repo_layout(tmp_path):
+def test_site_files_lists_the_page_model_and_examples(tmp_path):
     make_fake_repo(tmp_path)
 
-    files = files_to_upload(tmp_path)
+    files = site_files(tmp_path)
 
-    assert sorted(files.values()) == sorted(
-        CODE + ["README.md", "requirements.txt", "app/examples/a.png", "app/examples/a_mask.png",
-                "app/examples/examples.csv"]
-    )
-    assert files[tmp_path / "app" / "README.md"] == "README.md"
-    assert files[tmp_path / "experiments" / "03-resnet18-finetuned" / "model.pt"] == "experiments/03-resnet18-finetuned/model.pt"
+    assert sorted(files) == sorted(PAGE + ["README.md", "model.onnx", "examples/a.png", "examples/a_mask.png",
+                                           "examples.json"])
+    assert files["model.onnx"] == tmp_path / MODEL
 
 
-def test_files_to_upload_refuses_when_something_is_missing(tmp_path):
+def test_examples_json_carries_what_the_page_shows(tmp_path):
     make_fake_repo(tmp_path)
-    (tmp_path / "experiments" / "03-resnet18-finetuned" / "model.pt").unlink()
 
-    with pytest.raises(FileNotFoundError, match="model.pt"):
-        files_to_upload(tmp_path)
+    examples = json.loads(site_files(tmp_path)["examples.json"])
+
+    assert examples == [{"name": "a", "patient_id": "P1", "true": "glioma", "caption": "Glioma — correct",
+                         "note": "Hi, there."}]
 
 
-def test_the_demo_needs_only_the_code_that_is_uploaded():
-    # A fresh Python process, so modules loaded by other tests don't count.
-    listing = "import sys, app.demo; print(' '.join(sorted(m for m in sys.modules if m.startswith(('src.', 'app.')))))"
-    loaded = subprocess.run([sys.executable, "-c", listing], capture_output=True, text=True, check=True, cwd=ROOT)
+def test_site_files_refuses_when_something_is_missing(tmp_path):
+    make_fake_repo(tmp_path)
+    (tmp_path / MODEL).unlink()
 
-    for module in loaded.stdout.split():
-        assert module.replace(".", "/") + ".py" in CODE, f"{module} is imported by the demo but not uploaded"
+    with pytest.raises(FileNotFoundError, match="model.onnx"):
+        site_files(tmp_path)
+
+
+def test_preview_writes_the_site_to_a_folder(tmp_path):
+    make_fake_repo(tmp_path)
+
+    preview(tmp_path / "out", root=tmp_path)
+
+    assert (tmp_path / "out" / "index.html").read_text() == "x"
+    assert (tmp_path / "out" / "examples" / "a_mask.png").exists()
+    assert json.loads((tmp_path / "out" / "examples.json").read_text(encoding="utf-8"))[0]["name"] == "a"
