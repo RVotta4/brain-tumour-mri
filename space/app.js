@@ -105,14 +105,28 @@ function showResult(probabilities, text, picture) {
 async function main() {
   const [session, examples] = await Promise.all([ort.InferenceSession.create("model.onnx"), loadExamples()]);
 
-  async function analyse(blob) {
+  // One model run at a time, in the order they were asked for.
+  let queue = Promise.resolve();
+  function runModel(scan) {
+    const result = queue.then(() => session.run({ scan }));
+    queue = result.catch(() => {});
+    return result;
+  }
+
+  // Each click or upload gets a number; only the newest may show its result, so a
+  // slow earlier run can't overwrite a later one.
+  let latest = 0;
+
+  async function analyse(getImage) {
+    const request = ++latest;
     page.status.textContent = "Running the model…";
     try {
-      const { grey, width, height } = await readImage(blob);
+      const { grey, width, height } = await readImage(await getImage());
       const example = findExample(grey, width, height, examples);
       const pixels = example ? example.scan : preprocess(grey, width, height);
       const scan = new ort.Tensor("float32", Float32Array.from(pixels, (p) => p / 255), [1, 1, SIZE, SIZE]);
-      const { scores, heatmaps } = await session.run({ scan });
+      const { scores, heatmaps } = await runModel(scan);
+      if (request !== latest) return; // a newer click or upload has taken over
       const probabilities = softmax(Array.from(scores.data));
       const predicted = probabilities.indexOf(Math.max(...probabilities));
       const heatmap = normaliseHeatmap(heatmaps.data, predicted);
@@ -120,13 +134,14 @@ async function main() {
         overlay(pixels, heatmap, example ? example.mask : null));
       page.status.textContent = "";
     } catch (error) {
-      page.status.textContent = `Something went wrong: ${error.message}`;
+      if (request === latest) page.status.textContent = `Something went wrong: ${error.message}`;
     }
   }
 
-  showExamples(examples, async (example) => analyse(await fetchBlob(example.url)));
+  showExamples(examples, (example) => analyse(() => fetchBlob(example.url)));
   page.upload.addEventListener("change", () => {
-    if (page.upload.files[0]) analyse(page.upload.files[0]);
+    const file = page.upload.files[0];
+    if (file) analyse(async () => file);
   });
   page.upload.disabled = false;
   page.status.textContent = "Ready. Upload a slice or click an example.";

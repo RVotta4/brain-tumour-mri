@@ -26,10 +26,10 @@
     </section>
 
     <section>
-      <p id="status">Loading the model (45 MB)…</p>
+      <p id="status" aria-live="polite">Loading the model (45 MB)…</p>
       <div id="summary"></div>
       <div id="bars"></div>
-      <canvas id="heatmap" width="224" height="224" hidden></canvas>
+      <canvas id="heatmap" width="224" height="224" aria-describedby="heatmap-caption" hidden></canvas>
       <p id="heatmap-caption" class="caption" hidden>Grad-CAM: where the evidence came from (red = most)</p>
     </section>
   </main>
