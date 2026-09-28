@@ -1,0 +1,7 @@
+name,index,patient_id,true,caption,note
+glioma_correct,2040,MR051796,glioma,Glioma — correct,The heatmap lands on the tumour.
+meningioma_correct,406,97607,meningioma,Meningioma — correct,The heatmap lands on the tumour.
+pituitary_correct,999,112649,pituitary,"Pituitary — correct, looking elsewhere","Right answer, but the heatmap misses the tumour. Across the test set, the model's attention landed on pituitary tumours less often than chance would, which suggests it relies on where the slice sits in the head rather than on the tumour itself."
+meningioma_called_glioma,560,107946,meningioma,Meningioma — called glioma,"A confident mistake: all four test slices of this patient were called glioma, at 0.97–1.00 confidence."
+glioma_called_meningioma,827,101020,glioma,Glioma — called meningioma,From the patient with the most mistakes: 8 of the test set's 39.
+pituitary_called_meningioma,1759,105538,pituitary,Pituitary — called meningioma,One of six wrong slices out of this patient's seven.

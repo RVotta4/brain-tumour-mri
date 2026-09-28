@@ -208,3 +208,16 @@ def test_describe_says_whether_an_example_was_right():
     assert "A note." in describe(wrong)
     assert "outline" in describe(upload)
     assert "test patient" not in describe(upload)
+
+
+def test_the_committed_examples_are_complete():
+    examples = load_examples()  # the real app/examples folder
+
+    assert len(examples) == 6
+    for example in examples:
+        assert example.scan.shape == (224, 224)
+        assert example.scan.dtype == np.uint8
+        assert example.mask.shape == (224, 224)
+        assert set(np.unique(example.mask)) == {0, 1}  # an outline exists, and is strictly 0 or 1
+        assert example.true in CLASS_NAMES
+        assert example.caption and example.note
