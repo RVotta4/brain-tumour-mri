@@ -8,12 +8,18 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import torch
 from matplotlib import colormaps
 from PIL import Image
 
-from src.data import preprocess_image
+from src.data import CLASS_NAMES, preprocess_image
+from src.gradcam import grad_cam
+from src.models import build_model
 
 EXAMPLES_DIR = Path(__file__).resolve().parent / "examples"
+
+ROOT = Path(__file__).resolve().parent.parent
+MODEL_PATH = ROOT / "experiments" / "03-resnet18-finetuned" / "model.pt"
 
 HEAT_ALPHA = 0.45  # how strongly the heatmap tints the scan, as in the Stage 4 figures
 OUTLINE_COLOUR = (0, 255, 0)  # lime, as in the Stage 4 figures
@@ -121,3 +127,59 @@ def overlay(pixels, heatmap, mask=None):
     if mask is not None:
         image[outline(mask)] = OUTLINE_COLOUR
     return image
+
+
+@dataclass
+class Analysis:
+    """Everything the page shows for one image."""
+
+    probabilities: dict  # tumour type -> confidence; the three sum to 1
+    predicted: str
+    confidence: float
+    image: np.ndarray  # the scan with its heatmap (and outline, for examples)
+    example: Example | None
+
+
+def load_model(path=MODEL_PATH):
+    """The final model (experiment 3), ready to use."""
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"model file not found: {path}. On the laptop it comes from training experiment 3; "
+            "on the Space, app/deploy.py uploads it."
+        )
+    model = build_model("resnet18", pretrained=False)  # no ImageNet download: the saved weights replace them
+    model.load_state_dict(torch.load(path, weights_only=True))
+    return model.eval()
+
+
+def analyse(model, image, examples):
+    """Run the model on one image: prediction, all three confidences, and the heatmap picture."""
+    pixels, example = scan_pixels(image, examples)
+    scan = torch.from_numpy(pixels.astype(np.float32) / 255.0).unsqueeze(0)  # (1, 224, 224) in [0, 1], as in training
+    heatmap, predicted, confidence = grad_cam(model, scan)
+    with torch.no_grad():
+        probabilities = torch.softmax(model(scan.unsqueeze(0))[0], dim=0)
+    return Analysis(
+        probabilities={name: float(p) for name, p in zip(CLASS_NAMES, probabilities)},
+        predicted=CLASS_NAMES[predicted],
+        confidence=confidence,
+        image=overlay(pixels, heatmap, example.mask if example is not None else None),
+        example=example,
+    )
+
+
+def describe(analysis):
+    """A short Markdown summary shown above the confidence bars."""
+    lines = [f"**Prediction: {analysis.predicted}** ({analysis.confidence:.1%} confidence)"]
+    example = analysis.example
+    if example is None:
+        lines.append("Uploaded image: no tumour outline is available, so only the heatmap is shown.")
+    else:
+        verdict = "correct" if analysis.predicted == example.true else "a mistake"
+        lines.append(
+            f"Example from test patient {example.patient_id}. True type: **{example.true}**, "
+            f"so this answer is {verdict}. The green line is the clinicians' tumour outline."
+        )
+        lines.append(example.note)
+    return "\n\n".join(lines)

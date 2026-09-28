@@ -2,9 +2,26 @@ import csv
 from pathlib import Path
 
 import numpy as np
+import pytest
+import torch
 from PIL import Image
 
-from app.demo import Example, OUTLINE_COLOUR, find_example, load_examples, outline, overlay, scan_pixels, to_grey
+from app.demo import (
+    Analysis,
+    Example,
+    OUTLINE_COLOUR,
+    analyse,
+    describe,
+    find_example,
+    load_examples,
+    load_model,
+    outline,
+    overlay,
+    scan_pixels,
+    to_grey,
+)
+from src.data import CLASS_NAMES
+from src.models import ResNet18Grey
 
 
 def fake_example(seed=0):
@@ -130,3 +147,64 @@ def test_overlay_blends_scan_and_heatmap_like_the_stage_4_figures():
 
     # 55% white scan + 45% dark blue: red and green 0.55 * 255 = 140.25; blue (0.55 + 0.45 * 0.5) * 255 = 197.6
     assert overlay(white, cold)[0, 0].tolist() == [140, 140, 198]
+
+
+def random_model():
+    torch.manual_seed(0)
+    return ResNet18Grey(weights=None).eval()
+
+
+def test_load_model_restores_saved_weights(tmp_path):
+    saved = random_model()
+    torch.save(saved.state_dict(), tmp_path / "model.pt")
+
+    loaded = load_model(tmp_path / "model.pt")
+
+    assert not loaded.training
+    assert torch.equal(loaded.backbone.fc.weight, saved.backbone.fc.weight)
+
+
+def test_load_model_explains_a_missing_file(tmp_path):
+    with pytest.raises(FileNotFoundError, match="model file not found"):
+        load_model(tmp_path / "missing.pt")
+
+
+def test_analyse_an_upload():
+    rng = np.random.default_rng(2)
+    upload = Image.fromarray(rng.integers(0, 256, size=(300, 200, 3), dtype=np.uint8))
+
+    analysis = analyse(random_model(), upload, [])
+
+    assert list(analysis.probabilities) == CLASS_NAMES
+    assert sum(analysis.probabilities.values()) == pytest.approx(1.0)
+    assert analysis.predicted == max(analysis.probabilities, key=analysis.probabilities.get)
+    assert analysis.confidence == pytest.approx(analysis.probabilities[analysis.predicted], abs=1e-5)
+    assert analysis.image.shape == (224, 224, 3)
+    assert analysis.example is None
+
+
+def test_analyse_an_example_uses_its_stored_pixels_and_draws_its_outline():
+    model = random_model()
+    example = fake_example()
+
+    analysis = analyse(model, Image.fromarray(example.scan), [example])
+
+    with torch.no_grad():
+        direct = torch.softmax(model(torch.from_numpy(example.scan / 255.0).float()[None, None])[0], dim=0)
+    assert analysis.example is example
+    assert [analysis.probabilities[name] for name in CLASS_NAMES] == pytest.approx(direct.tolist(), abs=1e-6)
+    assert np.array_equal(is_outline_colour(analysis.image), outline(example.mask))
+
+
+def test_describe_says_whether_an_example_was_right():
+    example = fake_example()  # true type: glioma
+    right = Analysis(probabilities={}, predicted="glioma", confidence=0.93, image=None, example=example)
+    wrong = Analysis(probabilities={}, predicted="meningioma", confidence=0.99, image=None, example=example)
+    upload = Analysis(probabilities={}, predicted="pituitary", confidence=0.5, image=None, example=None)
+
+    assert "93.0%" in describe(right)
+    assert "correct" in describe(right)
+    assert "mistake" in describe(wrong)
+    assert "A note." in describe(wrong)
+    assert "outline" in describe(upload)
+    assert "test patient" not in describe(upload)
