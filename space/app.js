@@ -5,10 +5,6 @@ import {
   CLASS_NAMES, SIZE, describe, findExample, normaliseHeatmap, overlay, preprocess, softmax, toGrey,
 } from "./pipeline.js";
 
-// ort (ONNX Runtime Web) is loaded by index.html. Its WebAssembly files come from the same CDN.
-ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/";
-ort.env.wasm.numThreads = 1; // a static Space can't send the headers that multi-threading needs
-
 const page = {
   status: document.getElementById("status"),
   upload: document.getElementById("upload"),
@@ -82,7 +78,7 @@ function bar(name, probability) {
   const label = document.createElement("span");
   label.textContent = name;
   const value = document.createElement("span");
-  value.textContent = `${Math.round(probability * 100)}%`;
+  value.textContent = `${(probability * 100).toFixed(1)}%`;
   row.append(label, track, value);
   return row;
 }
@@ -103,6 +99,10 @@ function showResult(probabilities, text, picture) {
 }
 
 async function main() {
+  // ort (ONNX Runtime Web) is loaded by index.html. Its WebAssembly files come from the same CDN.
+  ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/";
+  ort.env.wasm.numThreads = 1; // a static Space can't send the headers that multi-threading needs
+
   const [session, examples] = await Promise.all([ort.InferenceSession.create("model.onnx"), loadExamples()]);
 
   // One model run at a time, in the order they were asked for.
@@ -120,6 +120,10 @@ async function main() {
   async function analyse(getImage) {
     const request = ++latest;
     page.status.textContent = "Running the model…";
+    page.summary.replaceChildren();
+    page.bars.replaceChildren();
+    page.heatmap.hidden = true;
+    page.heatmapCaption.hidden = true;
     try {
       const { grey, width, height } = await readImage(await getImage());
       const example = findExample(grey, width, height, examples);
@@ -141,6 +145,7 @@ async function main() {
   showExamples(examples, (example) => analyse(() => fetchBlob(example.url)));
   page.upload.addEventListener("change", () => {
     const file = page.upload.files[0];
+    page.upload.value = "";
     if (file) analyse(async () => file);
   });
   page.upload.disabled = false;

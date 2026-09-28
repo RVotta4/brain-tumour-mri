@@ -11,3 +11,5 @@ pytest
 onnx
 onnxscript
 onnxruntime
+# Uploading the demo to Hugging Face (app/deploy.py --space).
+huggingface_hub

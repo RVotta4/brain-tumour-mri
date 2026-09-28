@@ -72,8 +72,8 @@ In the prototype, all of these matched Python pixel for pixel on six image sizes
 
 ## 7. What stays and what goes
 
-- **Stays:** `app/demo.py` and its tests (the reference the browser version is checked against); `app/app.py`, the Gradio page, as the way to run the demo locally in Python; `app/examples/`; `app/make_examples.py`.
-- **Goes:** `app/README.md` and `app/requirements.txt`, which only served the Gradio Space; the deploy test that checked which Python files the Space needed.
+- **Stays:** `app/demo.py` and its tests (the reference the browser version is checked against); `app/examples/`; `app/make_examples.py`.
+- **Goes:** `app/README.md` and `app/requirements.txt`, which only served the Gradio Space; the deploy test that checked which Python files the Space needed; `app/app.py`, the Gradio page — it needs Gradio, and the live static page replaces it.
 
 ## 8. Pauses
 

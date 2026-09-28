@@ -57,7 +57,7 @@ def preview(folder, root=ROOT):
 
 def deploy(space):
     """Create the static Space if needed (public, free), then upload everything in one commit."""
-    from huggingface_hub import CommitOperationAdd, HfApi  # comes with Gradio; not needed by the tests
+    from huggingface_hub import CommitOperationAdd, HfApi  # only needed for uploading; listed in requirements.txt
 
     api = HfApi()
     api.create_repo(space, repo_type="space", space_sdk="static", private=False, exist_ok=True)

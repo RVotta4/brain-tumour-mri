@@ -1,6 +1,7 @@
-"""The live demo's logic, kept free of Gradio so pytest can check it.
+"""The Python reference for the browser demo: no Gradio, so pytest can check it.
 
-app/app.py lays out the page; everything the page shows is computed here.
+space/pipeline.js is tested against the functions here; everything the live
+page (space/) shows is computed the same way in this module.
 """
 
 import csv
@@ -145,8 +146,8 @@ def load_model(path=MODEL_PATH):
     path = Path(path)
     if not path.is_file():
         raise FileNotFoundError(
-            f"model file not found: {path}. On the laptop it comes from training experiment 3; "
-            "on the Space, app/deploy.py uploads it."
+            f"model file not found: {path}. It comes from training experiment 3 "
+            "(python -m src.train ...); it is not in the repository."
         )
     model = build_model("resnet18", pretrained=False)  # no ImageNet download: the saved weights replace them
     model.load_state_dict(torch.load(path, weights_only=True))

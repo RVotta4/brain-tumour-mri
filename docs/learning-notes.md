@@ -236,7 +236,7 @@ So the demo became a web page that runs the model itself, in the visitor's brows
 
 ## 21. Grad-CAM without a backward pass
 
-A browser runtime only runs the model forwards, and Grad-CAM needs gradients. But for ResNet-18 the gradients are known in advance. The last step averages each of the 512 maps and weights the averages to get each class score, so the gradient for map *k* is that map's weight divided by 49 (the 7×7 cells). Weighting the maps by the last-layer weights therefore gives exactly Grad-CAM's heatmap, once it is scaled so its peak is 1. This version is known as CAM. The exported model computes it in the same forward pass, and it matched the hand-written Grad-CAM to within 0.00001.
+A browser runtime only runs the model forwards, and Grad-CAM needs gradients. But for ResNet-18 the gradients are known in advance. The last step averages each of the 512 maps and weights the averages to get each class score, so the gradient for map *k* is that map's weight divided by 49 (the 7×7 cells). Weighting the maps by the last-layer weights therefore gives exactly Grad-CAM's heatmap, once it is scaled so its peak is 1. This version is known as CAM. The exported model computes it in the same forward pass, and it matched the hand-written Grad-CAM to about 0.00001 on the six example scans.
 
 > **Say:** "For a network that ends in global average pooling, Grad-CAM reduces to CAM: the gradients are just the last layer's weights. So I exported a model that returns the heatmaps directly and checked it against my Grad-CAM."
 
@@ -252,6 +252,6 @@ Both are tested. The six examples reproduce the test run's confidences, and the 
 
 ## 23. What happens to an uploaded image
 
-Nothing leaves the device. The page reads the file in the browser, runs the model there, and draws the result. The only downloads are the page, the model and the example scans. Two small, stated differences affect uploads only: the browser reduces 16-bit images to 8-bit, and its JPEG decoder can differ from Python's by a grey level here and there. The example scans (PNG) are unaffected.
+Nothing leaves the device. The page reads the file in the browser, runs the model there, and draws the result. The only downloads are the page, the model and the example scans, plus ONNX Runtime's own code, which comes from a public CDN (jsDelivr), pinned to version 1.30.0 — nothing is uploaded there either. Four small, stated differences affect uploads only: the browser reduces 16-bit images to 8-bit; its JPEG decoder can differ from Python's by a grey level here and there; it applies a photo's EXIF rotation, which Python doesn't; and transparent areas can come out differently. The example scans (PNG) are unaffected.
 
 > **Say:** "Uploaded scans never leave the visitor's device, because the model runs in the browser. For a medical demo that's the privacy design I'd want anyway."

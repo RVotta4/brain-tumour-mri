@@ -91,7 +91,10 @@ def main():
     export(load_model(), ONNX_PATH)
     print(f"Wrote {ONNX_PATH} ({ONNX_PATH.stat().st_size / 1e6:.1f} MB)")
     if not check_examples():
-        raise SystemExit("The exported model does not reproduce the test run. Don't deploy it.")
+        ONNX_PATH.unlink(missing_ok=True)
+        raise SystemExit(
+            "The exported model does not reproduce the test run. Deleted it; don't deploy."
+        )
 
 
 if __name__ == "__main__":

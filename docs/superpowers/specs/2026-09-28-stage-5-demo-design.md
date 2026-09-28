@@ -1,7 +1,9 @@
 # Stage 5: Live Demo on Hugging Face Spaces — Design
 
+> **Hosting superseded by** 2026-09-28-stage-5b-browser-demo-design.md (static Space, model runs in the browser).
+
 **Date:** 2026-09-28
-**Status:** Approved in brainstorming, awaiting written-spec review
+**Status:** Approved; hosting sections superseded (see above)
 **Overall design:** `2026-09-17-brain-tumour-mri-design.md` (section 7). This spec fills in that section.
 
 ## 1. Purpose
