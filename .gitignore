@@ -4,3 +4,5 @@ __pycache__/
 data/
 experiments/*/model.pt
 experiments/smoke/
+experiments/*/model.onnx
+space_preview/

@@ -7,3 +7,7 @@ h5py
 pillow
 matplotlib
 pytest
+# Exporting the final model for the browser demo (app/export_onnx.py).
+onnx
+onnxscript
+onnxruntime
