@@ -197,3 +197,31 @@ That honesty survives exactly one look. Score the test set, adjust something, sc
 Final model on test: 90.9%, against 93.0% on validation. The biggest drop was meningioma recall, 0.93 → 0.76 — the class that got the most attention during development was the most flattered by validation.
 
 > **Say:** "The test set was touched once, at the very end, and the code refuses a second look. Validation was used for every decision, so it's slightly optimistic — 93% there, 90.9% on test. The biggest drop was meningioma, the class I'd focused on most, which is exactly the bias a held-out test set exists to catch."
+
+## 17. Grad-CAM
+
+A trained network gives an answer, not a reason. Grad-CAM recovers a rough "where". ResNet-18's last stage turns the scan into 512 pattern maps, each a 7×7 grid of how strongly one learned pattern appears where. The decision averages each map and weighs them into the three class scores.
+
+Grad-CAM asks how much the winning score would rise if each map got stronger — the gradient — and uses that as the map's importance. The weighted maps are added up, negative evidence is dropped, and the 7×7 result is stretched over the scan. Red means "the evidence for this answer came from here".
+
+It shows where, not why: a hot region says the model used that area, not what it saw there. Before trusting the hand-written version, it was checked against an independent hook-based implementation on real scans: identical heatmaps.
+
+> **Say:** "Grad-CAM weights the last layer's pattern maps by how much each one pushed the winning class score, then overlays the result on the scan. I wrote it by hand — two halves of the forward pass and one gradient call — so I can explain exactly what the heatmap is."
+
+## 18. Measuring attention: the pointing game and luck baselines
+
+Looking at a few heatmaps proves little; anyone can pick flattering examples. The dataset includes the clinicians' tumour outline for every scan, so attention can be measured.
+
+The pointing game asks whether the heatmap's hottest point lands on the tumour (with 8 pixels of leeway). It hit in 19.8% of test scans. On its own that number is meaningless — so it is compared with luck: a randomly placed point would hit 4.0% of the time, because that is how much of the image lies near a tumour. The in-mask share gets the same treatment: 2.5% of the heatmap fell inside the outline, 1.7 times what an evenly spread heatmap would manage.
+
+The baseline is also what exposed the most interesting result. Pituitary tumours are classified correctly 95% of the time, yet the pointing game hit them in 0.8% of scans — *below* the 2.9% luck level. Without a baseline, "0.8%" just looks low; with one, it says the model is systematically looking away from the tumour it names correctly. That points to a shortcut, most likely the slice's position in the head.
+
+> **Say:** "I measured attention against the clinicians' tumour outlines rather than eyeballing heatmaps. The model's peak lands on the tumour 20% of the time against 4% by chance — but for pituitary it's below chance despite 95% recall, which suggests it's recognising where the slice is, not the tumour."
+
+## 19. Why the heatmap is coarse
+
+ResNet-18's last stage sees the scan as a 7×7 grid, so each Grad-CAM cell covers 32×32 pixels — about 2% of the image. The tumours here cover a median of 0.7–1.6%. A heatmap cell is bigger than the typical tumour, so even perfect attention spreads well beyond the outline.
+
+That is why the original "at least half the heatmap inside the tumour" test was dropped before running anything: it would have failed almost every scan and wrongly suggested the model ignores tumours. Spotting that a measurement cannot fit the data is part of the job.
+
+> **Say:** "The heatmap's resolution is 7×7, and each cell is bigger than most of these tumours, so I replaced a 'half inside the outline' test that could never pass with the pointing game — the measurement has to fit the data."

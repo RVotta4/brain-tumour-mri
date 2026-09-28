@@ -2,7 +2,7 @@
 
 Classifying brain tumour type (glioma, meningioma, pituitary) from MRI slices with deep learning, built step by step to understand how the model learns, and where its results can mislead.
 
-> **Status:** in progress. Experiments 1–4 complete and the final model scored once on the test set; heatmaps and a live demo are next.
+> **Status:** in progress. Experiments 1–4, the one-shot test score and the Grad-CAM analysis are complete; a live demo is next.
 > **Educational project, not a medical device, not for diagnosis.**
 
 **Result:** 90.9% test accuracy (patient-level split, scored once); meningioma remains the hardest type at 0.76 recall. [Details below.](#final-test-results)
@@ -135,13 +135,62 @@ That model was then scored **once** on the 34 test patients (430 scans) that had
 
 ![Test confusion matrix](experiments/03-resnet18-finetuned/test_confusion_matrix.png)
 
-The 2-point drop from validation is expected: every choice — which epoch, which learning rate, which model — was made by looking at validation, so validation was slightly tuned in the model's favour, while the test patients influenced nothing. Glioma and pituitary held up (0.94 and 0.95 recall). Meningioma did not: 61 of 80 caught, with most misses called glioma, against 0.93 recall on validation. It was the class that got the most attention during development, so its validation score was the most flattered — which is exactly why a separate test set is kept. The 80 meningioma slices come from only a handful of patients, so a few hard patients may account for most of the misses; the next stage looks at where the model is looking on those mistakes.
+The 2-point drop from validation is expected: every choice — which epoch, which learning rate, which model — was made by looking at validation, so validation was slightly tuned in the model's favour, while the test patients influenced nothing. Glioma and pituitary held up (0.94 and 0.95 recall). Meningioma did not: 61 of 80 caught, with most misses called glioma, against 0.93 recall on validation. It was the class that got the most attention during development, so its validation score was the most flattered — which is exactly why a separate test set is kept. The 80 meningioma slices come from only a handful of patients, so a few hard patients may account for most of the misses; the sections below look at where the model looks and which patients the mistakes come from.
+
+## Where the model looks
+
+Grad-CAM, written by hand in `src/explain.py`, turns each decision into a heatmap of where the evidence came from, taken from ResNet-18's last convolutional stage. It was run on all 430 test scans after the test score was final; nothing found here was used to change the model.
+
+![Grad-CAM examples](experiments/03-resnet18-finetuned/explain/gradcam_examples.png)
+
+*Random correctly classified test scans (seed 0, not hand-picked): tumour outline in green, then the heatmap — red is where the evidence came from.*
+
+**Measuring it.** The original plan was to call a scan "focused" if at least half the heatmap fell inside the clinicians' tumour outline. The data rules that out: tumours cover a median of 0.7–1.6% of the image, while each cell of ResNet-18's 7×7 heatmap covers about 2%, so even perfectly placed attention spills far outside the outline. Two measures that fit, each with the score luck alone would give:
+
+- **Pointing game:** is the heatmap's hottest pixel on the tumour (within 8 pixels)?
+- **In-mask share:** what fraction of the heatmap falls inside the outline?
+
+| | Scans | Pointing game | Luck | In-mask share | Luck | × luck |
+|---|---|---|---|---|---|---|
+| All test scans | 430 | 19.8% | 4.0% | 2.5% | 1.5% | 1.7 |
+| Correct answers | 391 | 20.7% | 4.0% | 2.6% | 1.5% | 1.7 |
+| Wrong answers | 39 | 10.3% | 3.7% | 2.2% | 1.3% | 1.7 |
+| Meningioma | 80 | 13.8% | 3.5% | 2.8% | 1.2% | 2.3 |
+| Glioma | 222 | 32.9% | 4.7% | 3.3% | 1.9% | 1.8 |
+| Pituitary | 128 | **0.8%** | 2.9% | 1.1% | 0.9% | 1.2 |
+
+The model does use the tumour region — its peak lands there five times more often than luck — but only one scan in five, and the example heatmaps are broad blobs over the centre of the brain. Some of that blur is the coarse 7×7 grid; not all of it. When the model is wrong, its peak lands on the tumour half as often as when it is right. **Pituitary is the striking case:** the model catches 95% of pituitary tumours on test, yet its peak lands on the tumour *less* often than luck would. It is recognising pituitary cases by something other than the tumour itself. A likely explanation is the slice's position in the head — pituitary tumours sit in one fixed place at the base of the brain, so their scans show the same central anatomy — but these results suggest that shortcut rather than prove it.
+
+## Mistakes
+
+All 39 wrong test answers, grouped by true type. Titles give the model's answer, its confidence and the patient; red titles are confident mistakes (confidence ≥ 0.9): 16 of them.
+
+![Meningioma mistakes](experiments/03-resnet18-finetuned/explain/mistakes_meningioma.png)
+![Glioma mistakes](experiments/03-resnet18-finetuned/explain/mistakes_glioma.png)
+![Pituitary mistakes](experiments/03-resnet18-finetuned/explain/mistakes_pituitary.png)
+
+**Meningioma misses by patient:**
+
+| Patient | Slices | Wrong | Mostly called |
+|---|---|---|---|
+| 100572 | 8 | 5 | pituitary |
+| 107946 | 4 | 4 | glioma |
+| 109968 | 12 | 2 | glioma |
+| 112648 | 10 | 2 | glioma |
+| 112650 | 2 | 2 | glioma |
+| 113554 | 10 | 2 | glioma |
+| 114417 | 4 | 1 | glioma |
+| 97607 | 12 | 1 | glioma |
+
+The mistakes cluster: 28 of the 39 come from 5 of the 34 test patients. Every pituitary mistake is one patient (105538, 6 of 7 slices, mostly called meningioma), and 13 of the 14 glioma mistakes are two patients (101020 and 90284). Meningioma is more mixed: 9 of its 19 misses are two patients, the other 10 are spread across six. Two cases stand out. Patient 100572's meningioma sits near the centre of the skull base, where pituitary tumours sit, and the model called it pituitary — what a location shortcut would predict. Patient 107946's large meningioma was called glioma on all four slices at 97–100% confidence. And for glioma patient 90284, four of the five wrong heatmaps peak on the eyes and face, outside the brain entirely. The model's confidence is not a reliable warning sign on its hardest cases.
 
 ## Limitations
 
 - Single 2D slices, not full 3D scans.
 - One dataset, collected at two hospitals in China between 2005 and 2010; performance elsewhere is unknown.
 - Only three tumour types; the model cannot say "no tumour".
+- The model does not reliably base its answer on the tumour itself, and pituitary cases show signs of a location shortcut (see [Where the model looks](#where-the-model-looks)).
+- Its confidence is not a reliable warning: 16 of 39 test mistakes were made at 90% confidence or more.
 - Not clinically validated.
 
 ## How to run
@@ -158,6 +207,7 @@ Requires Windows with Python 3.13.
     .\.venv\Scripts\python.exe -m src.train --name 04-resnet18-augment --model resnet18 --epochs 15 --lr 1e-4 --augment
     .\.venv\Scripts\python.exe -m src.score --name 03-resnet18-finetuned --split validation
     .\.venv\Scripts\python.exe -m src.score --name 03-resnet18-finetuned --split test
+    .\.venv\Scripts\python.exe -m src.explain --name 03-resnet18-finetuned
 
 The first ResNet-18 run downloads its ImageNet weights (~45 MB) once.
 
