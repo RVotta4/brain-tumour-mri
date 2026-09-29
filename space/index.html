@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brain tumour MRI classifier</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.min.js"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Brain tumour MRI classifier</h1>
+    <p><strong>Educational project — not a medical device, not for diagnosis.</strong></p>
+    <p>This model only knows three tumour types: glioma, meningioma and pituitary. Given a healthy scan or a
+      non-MRI image, it will still pick one of the three.</p>
+    <p>The model runs in your browser: images you upload never leave your device.</p>
+  </header>
+
+  <main class="columns">
+    <section>
+      <label for="upload">MRI slice (PNG or JPG; DICOM files are not supported)</label>
+      <input type="file" id="upload" accept="image/png,image/jpeg" disabled>
+      <h2>Example test scans</h2>
+      <div id="examples" class="examples"></div>
+    </section>
+
+    <section>
+      <p id="status" aria-live="polite">Loading the model (45 MB)…</p>
+      <div id="summary"></div>
+      <div id="bars"></div>
+      <canvas id="heatmap" width="224" height="224" aria-describedby="heatmap-caption" hidden></canvas>
+      <p id="heatmap-caption" class="caption" hidden>Grad-CAM: where the evidence came from (red = most)</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>ResNet-18 fine-tuned on 2D contrast-enhanced T1-weighted MRI slices: 90.9% accuracy on 430 held-out
+      test scans from 34 patients. How it was built, and where it fails:
+      <a href="https://github.com/RVotta4/brain-tumour-mri">github.com/RVotta4/brain-tumour-mri</a>.</p>
+    <p>Example scans: Cheng, Jun (2017). <em>brain tumor dataset</em>. figshare.
+      <a href="https://doi.org/10.6084/m9.figshare.1512427">doi:10.6084/m9.figshare.1512427</a> (CC BY 4.0).</p>
+    <p>Runs on <a href="https://onnxruntime.ai/">ONNX Runtime Web</a>.</p>
+  </footer>
+</body>
+</html>

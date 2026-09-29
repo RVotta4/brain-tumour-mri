@@ -2,10 +2,12 @@
 
 Classifying brain tumour type (glioma, meningioma, pituitary) from MRI slices with deep learning, built step by step to understand how the model learns, and where its results can mislead.
 
-> **Status:** in progress. Experiments 1–4, the one-shot test score and the Grad-CAM analysis are complete; a live demo is next.
+> **Status:** in progress. Experiments 1–4, the one-shot test score, the Grad-CAM analysis and the live demo are complete; the "99% trap" experiment is next.
 > **Educational project, not a medical device, not for diagnosis.**
 
 **Result:** 90.9% test accuracy (patient-level split, scored once); meningioma remains the hardest type at 0.76 recall. [Details below.](#final-test-results)
+
+**Try it:** [live demo on Hugging Face](https://huggingface.co/spaces/RVotta4/brain-tumour-mri). Upload a slice or click an example to see the prediction, the confidence for each type and a Grad-CAM heatmap. The model runs in your browser, so uploaded images never leave your device.
 
 ## Why this project
 
@@ -139,7 +141,7 @@ The 2-point drop from validation is expected: every choice — which epoch, whic
 
 ## Where the model looks
 
-Grad-CAM, written by hand in `src/explain.py`, turns each decision into a heatmap of where the evidence came from, taken from ResNet-18's last convolutional stage. It was run on all 430 test scans after the test score was final; nothing found here was used to change the model.
+Grad-CAM, written by hand in `src/gradcam.py`, turns each decision into a heatmap of where the evidence came from, taken from ResNet-18's last convolutional stage. It was run on all 430 test scans after the test score was final; nothing found here was used to change the model.
 
 ![Grad-CAM examples](experiments/03-resnet18-finetuned/explain/gradcam_examples.png)
 
@@ -208,8 +210,14 @@ Requires Windows with Python 3.13.
     .\.venv\Scripts\python.exe -m src.score --name 03-resnet18-finetuned --split validation
     .\.venv\Scripts\python.exe -m src.score --name 03-resnet18-finetuned --split test
     .\.venv\Scripts\python.exe -m src.explain --name 03-resnet18-finetuned
+    .\.venv\Scripts\python.exe -m app.make_examples
+    .\.venv\Scripts\python.exe -m app.export_onnx
+    .\.venv\Scripts\python.exe -m app.deploy --preview space_preview
+    .\.venv\Scripts\python.exe -m http.server 8000 --directory space_preview
+    .\.venv\Scripts\hf.exe auth login
+    .\.venv\Scripts\python.exe -m app.deploy --space <username>/brain-tumour-mri
 
-The first ResNet-18 run downloads its ImageNet weights (~45 MB) once.
+The first ResNet-18 run downloads its ImageNet weights (~45 MB) once. The browser demo then runs at http://localhost:8000. Its image steps are tested against the Python code, which needs Node.js for that one test. Uploading needs a Hugging Face account with a write token (from `hf auth login`); it creates a free static Space if one doesn't already exist.
 
 ## Data citation
 

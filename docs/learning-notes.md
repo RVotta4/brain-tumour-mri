@@ -225,3 +225,33 @@ ResNet-18's last stage sees the scan as a 7×7 grid, so each Grad-CAM cell cover
 That is why the original "at least half the heatmap inside the tumour" test was dropped before running anything: it would have failed almost every scan and wrongly suggested the model ignores tumours. Spotting that a measurement cannot fit the data is part of the job.
 
 > **Say:** "The heatmap's resolution is 7×7, and each cell is bigger than most of these tumours, so I replaced a 'half inside the outline' test that could never pass with the pointing game — the measurement has to fit the data."
+
+## 20. Where the demo runs: a static Space
+
+The first plan was a Gradio app on a Hugging Face Space: a Python server that runs the model for each visitor. The day before deploying, Hugging Face started charging for those. Free accounts can still host **static** Spaces, which only hand files to the browser.
+
+So the demo became a web page that runs the model itself, in the visitor's browser, using ONNX Runtime Web. The model is exported from PyTorch to ONNX, a portable format. There is no server to pay for, sleep or wake, and an uploaded scan never leaves the visitor's device.
+
+> **Say:** "The demo runs the model in your browser, so it's free to host and the scan you upload never leaves your computer. I moved to that when Hugging Face started charging for Python Spaces."
+
+## 21. Grad-CAM without a backward pass
+
+A browser runtime only runs the model forwards, and Grad-CAM needs gradients. But for ResNet-18 the gradients are known in advance. The last step averages each of the 512 maps and weights the averages to get each class score, so the gradient for map *k* is that map's weight divided by 49 (the 7×7 cells). Weighting the maps by the last-layer weights therefore gives exactly Grad-CAM's heatmap, once it is scaled so its peak is 1. This version is known as CAM. The exported model computes it in the same forward pass, and it matched the hand-written Grad-CAM to about 0.00001 on the six example scans.
+
+> **Say:** "For a network that ends in global average pooling, Grad-CAM reduces to CAM: the gradients are just the last layer's weights. So I exported a model that returns the heatmaps directly and checked it against my Grad-CAM."
+
+## 22. Making the browser give the same answers as Python
+
+A demo is only honest if it runs the model exactly as it was tested. Two things could quietly change the pixels the model sees:
+- **the example scans:** they were stretched before being resized, so stretching them again would change them by up to 39 grey levels. The demo recognises an example by its pixels and uses the stored scan unchanged;
+- **the browser code:** resizing an image "the same way" isn't enough. The JavaScript copies the exact arithmetic of Pillow's bilinear resize, NumPy's rounding and Matplotlib's colour map.
+
+Both are tested. The six examples reproduce the test run's confidences, and the JavaScript matches the Python pixel for pixel on five image sizes. The Python code writes its answers to a file, and pytest runs Node to compare.
+
+> **Say:** "I tested the browser version against the Python one pixel for pixel, and checked that every example reproduces its test-set confidence, so the demo is the model I evaluated, not an approximation of it."
+
+## 23. What happens to an uploaded image
+
+Nothing leaves the device. The page reads the file in the browser, runs the model there, and draws the result. The only downloads are the page, the model and the example scans, plus ONNX Runtime's own code, which comes from a public CDN (jsDelivr), pinned to version 1.30.0 — nothing is uploaded there either. Four small, stated differences affect uploads only: the browser reduces 16-bit images to 8-bit; its JPEG decoder can differ from Python's by a grey level here and there; it applies a photo's EXIF rotation, which Python doesn't; and transparent areas can come out differently. The example scans (PNG) are unaffected.
+
+> **Say:** "Uploaded scans never leave the visitor's device, because the model runs in the browser. For a medical demo that's the privacy design I'd want anyway."
